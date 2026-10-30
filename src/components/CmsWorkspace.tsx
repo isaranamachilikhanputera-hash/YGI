@@ -55,6 +55,7 @@ import {
   Bell,
   LogOut,
   Globe,
+  Home,
   Plus,
   CheckCircle2,
   XCircle,
@@ -953,7 +954,7 @@ export function CmsWorkspace({
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-[#F4F7F4] text-[#0F2417]">
       {/* Left Sidebar Navigation (268px on desktop) */}
-      <aside className="w-full lg:w-[268px] shrink-0 bg-[#0F291E] text-white border-b lg:border-b-0 lg:border-r border-[#1E4631] flex flex-col justify-between">
+      <aside className="w-full lg:w-[268px] lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto shrink-0 bg-[#0F291E] text-white border-b lg:border-b-0 lg:border-r border-[#1E4631] flex flex-col justify-between">
         <div>
           <div className="p-5 border-b border-[#1E4631]">
             <p className="text-[11px] font-mono-tabular text-emerald-300/90">
@@ -1002,19 +1003,20 @@ export function CmsWorkspace({
             <button
               type="button"
               onClick={onBackToPublic}
+              aria-label="Home"
               className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-semibold bg-[#1E4631] hover:bg-[#2D6A4F] text-white rounded-md transition-colors cursor-pointer"
             >
-              <Globe className="w-3.5 h-3.5" />
-              <span>Web Publik</span>
+              <Home className="w-3.5 h-3.5" />
+              <span>Home</span>
             </button>
             <button
               type="button"
               onClick={onLogout}
-              aria-label="Keluar dari CMS"
+              aria-label="Logout dari CMS"
               className="inline-flex items-center justify-center gap-1 py-2 px-3 text-xs font-semibold bg-red-950/80 hover:bg-red-900 text-red-100 rounded-md transition-colors cursor-pointer"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Keluar</span>
+              <span>Logout</span>
             </button>
           </div>
         </div>
@@ -1044,13 +1046,6 @@ export function CmsWorkspace({
               className="px-3 py-1.5 text-xs font-semibold text-[#1B4332] bg-[#EBF1ED] hover:bg-[#DCE7DF] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               Notifikasi ({unreadNotificationsCount})
-            </button>
-            <button
-              type="button"
-              onClick={onBackToPublic}
-              className="px-3.5 py-1.5 text-xs font-semibold text-white bg-[#1B4332] hover:bg-[#143325] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              Lihat Website Publik
             </button>
           </div>
         </header>
