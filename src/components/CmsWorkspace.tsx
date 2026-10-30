@@ -36,11 +36,16 @@ import {
   canApproveTaskReport,
   formatLetterPdfFilename,
   buildLetterPdfBytes,
+  WorkProgramItem,
+  canManageWorkPrograms,
+  validateAndFormatWorkProgram,
+  DEFAULT_ALLOWED_DOMAINS,
 } from '../utils/cmsLogic';
 import { ArticleThemeIllustration } from './ForestIllustrations';
 import {
   BarChart3,
   FileText,
+  Layers,
   MailCheck,
   ClipboardCheck,
   Users,
@@ -68,6 +73,7 @@ import {
 export type CmsTab =
   | 'dashboard'
   | 'contents'
+  | 'programs'
   | 'letters'
   | 'reports'
   | 'users'
@@ -80,6 +86,7 @@ interface CmsWorkspaceProps {
   siteConfig: SiteConfig;
   categories: CategoryItem[];
   contents: ContentArticle[];
+  workPrograms: WorkProgramItem[];
   templates: LetterTemplate[];
   letterSequence: number;
   letters: OrganizationLetter[];
@@ -107,6 +114,16 @@ interface CmsWorkspaceProps {
     status: 'published' | 'rejected'
   ) => void;
   onDeleteContent: (contentId: string) => void;
+  onCreateWorkProgram: (data: {
+    code: string;
+    title: string;
+    description: string;
+  }) => void;
+  onUpdateWorkProgram: (
+    id: string,
+    data: { code: string; title: string; description: string }
+  ) => void;
+  onDeleteWorkProgram: (id: string) => void;
   onSaveTemplate: (data: {
     name: string;
     category: LetterCategory;
@@ -171,6 +188,7 @@ export function CmsWorkspace({
   siteConfig,
   categories,
   contents,
+  workPrograms,
   templates,
   letterSequence,
   letters,
@@ -184,6 +202,9 @@ export function CmsWorkspace({
   onCreateContent,
   onUpdateContentStatus,
   onDeleteContent,
+  onCreateWorkProgram,
+  onUpdateWorkProgram,
+  onDeleteWorkProgram,
   onSaveTemplate,
   onCreateLetter,
   onUpdateLetterStatus,
@@ -290,6 +311,17 @@ export function CmsWorkspace({
   const [editingPasswordValue, setEditingPasswordValue] = useState<string>('');
   const [hiddenPasswordUids, setHiddenPasswordUids] = useState<Record<string, boolean>>({});
 
+  // Work Program Management state (Level 0 & Level 1)
+  const [newProgCode, setNewProgCode] = useState(
+    `0${workPrograms.length + 1}. Program Strategis`
+  );
+  const [newProgTitle, setNewProgTitle] = useState('');
+  const [newProgDesc, setNewProgDesc] = useState('');
+  const [editingProgId, setEditingProgId] = useState<string | null>(null);
+  const [editProgCode, setEditProgCode] = useState('');
+  const [editProgTitle, setEditProgTitle] = useState('');
+  const [editProgDesc, setEditProgDesc] = useState('');
+
   // Website Configuration state
   const [cfgForm, setCfgForm] = useState({
     siteName: siteConfig.siteName,
@@ -297,6 +329,15 @@ export function CmsWorkspace({
     logoUrl: siteConfig.logoUrl || DEFAULT_YGI_LOGO_DATA_URL,
     heroTitle: siteConfig.heroTitle,
     heroDescription: siteConfig.heroDescription,
+    programSectionTitle:
+      siteConfig.programSectionTitle ||
+      'Arsitektur Tata Kelola Hutan & Kepatuhan Organisasi',
+    programSectionSubtitle:
+      siteConfig.programSectionSubtitle ||
+      `Seluruh kegiatan operasional ${siteConfig.siteName} dijalankan dengan sistem otorisasi berjenjang, penomoran surat otomatis, dan pelaporan bukti lapangan yang transparan.`,
+    allowedDomainsText: (
+      siteConfig.allowedDomains || DEFAULT_ALLOWED_DOMAINS
+    ).join(', '),
     contactPersonName: siteConfig.contactPersonName,
     contactPersonPhone: siteConfig.contactPersonPhone,
     contactPersonEmail: siteConfig.contactPersonEmail,
@@ -311,6 +352,15 @@ export function CmsWorkspace({
       logoUrl: siteConfig.logoUrl || DEFAULT_YGI_LOGO_DATA_URL,
       heroTitle: siteConfig.heroTitle,
       heroDescription: siteConfig.heroDescription,
+      programSectionTitle:
+        siteConfig.programSectionTitle ||
+        'Arsitektur Tata Kelola Hutan & Kepatuhan Organisasi',
+      programSectionSubtitle:
+        siteConfig.programSectionSubtitle ||
+        `Seluruh kegiatan operasional ${siteConfig.siteName} dijalankan dengan sistem otorisasi berjenjang, penomoran surat otomatis, dan pelaporan bukti lapangan yang transparan.`,
+      allowedDomainsText: (
+        siteConfig.allowedDomains || DEFAULT_ALLOWED_DOMAINS
+      ).join(', '),
       contactPersonName: siteConfig.contactPersonName,
       contactPersonPhone: siteConfig.contactPersonPhone,
       contactPersonEmail: siteConfig.contactPersonEmail,
@@ -630,10 +680,64 @@ export function CmsWorkspace({
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
+      if (typeof reader.result !== 'string') return;
+      const rawDataUrl = reader.result;
+
+      // For raster images (PNG/JPEG/WebP), proportionally resize inside an offscreen canvas
+      // preserving 100% of the full image aspect ratio (0, 0, targetW, targetH) without cropping
+      // so the bottom of the logo is never cut off and Firestore document size stays optimal.
+      if (file.type.startsWith('image/') && !file.type.includes('svg')) {
+        const img = new Image();
+        img.onload = () => {
+          try {
+            const maxW = 720;
+            const maxH = 360;
+            let targetW = img.naturalWidth || img.width || 300;
+            let targetH = img.naturalHeight || img.height || 300;
+            if (targetW > maxW || targetH > maxH) {
+              const ratio = Math.min(maxW / targetW, maxH / targetH);
+              targetW = Math.max(1, Math.round(targetW * ratio));
+              targetH = Math.max(1, Math.round(targetH * ratio));
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = targetW;
+            canvas.height = targetH;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.clearRect(0, 0, targetW, targetH);
+              ctx.drawImage(img, 0, 0, targetW, targetH);
+              const optimizedDataUrl = canvas.toDataURL('image/png');
+              setCfgForm((prev) => ({
+                ...prev,
+                logoUrl: optimizedDataUrl,
+              }));
+              showToast(
+                `File logo "${file.name}" (${targetW}x${targetH}px utuh tanpa terpotong) berhasil dimuat. Klik "Simpan Konfigurasi Website Sekarang" untuk menampilkan di halaman utama.`
+              );
+              return;
+            }
+          } catch {
+            // Fallback to rawDataUrl
+          }
+          setCfgForm((prev) => ({
+            ...prev,
+            logoUrl: rawDataUrl,
+          }));
+          showToast(
+            `File logo "${file.name}" berhasil dimuat. Klik "Simpan Konfigurasi Website Sekarang" untuk menampilkan di halaman utama.`
+          );
+        };
+        img.onerror = () => {
+          setCfgForm((prev) => ({
+            ...prev,
+            logoUrl: rawDataUrl,
+          }));
+        };
+        img.src = rawDataUrl;
+      } else {
         setCfgForm((prev) => ({
           ...prev,
-          logoUrl: reader.result as string,
+          logoUrl: rawDataUrl,
         }));
         showToast(
           `File logo "${file.name}" berhasil dimuat. Klik "Simpan Konfigurasi Website Sekarang" untuk menampilkan di halaman utama.`
@@ -641,6 +745,82 @@ export function CmsWorkspace({
       }
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleAddWorkProgramSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManageWorkPrograms(currentUser.level)) return;
+    const check = validateAndFormatWorkProgram(
+      newProgCode,
+      newProgTitle,
+      newProgDesc
+    );
+    if (!check.valid) {
+      showToast(check.error || 'Data Program Kerja belum lengkap.');
+      return;
+    }
+    onCreateWorkProgram({
+      code: check.cleanedCode,
+      title: check.cleanedTitle,
+      description: check.cleanedDescription,
+    });
+    const nextIdx = workPrograms.length + 2;
+    setNewProgCode(`0${nextIdx}. Program Strategis`);
+    setNewProgTitle('');
+    setNewProgDesc('');
+    showToast(
+      `Program Kerja "${check.cleanedTitle}" berhasil ditambahkan ke halaman utama!`
+    );
+  };
+
+  const handleSaveEditWorkProgram = (id: string) => {
+    if (!canManageWorkPrograms(currentUser.level)) return;
+    const check = validateAndFormatWorkProgram(
+      editProgCode,
+      editProgTitle,
+      editProgDesc
+    );
+    if (!check.valid) {
+      showToast(check.error || 'Data Program Kerja tidak valid.');
+      return;
+    }
+    onUpdateWorkProgram(id, {
+      code: check.cleanedCode,
+      title: check.cleanedTitle,
+      description: check.cleanedDescription,
+    });
+    setEditingProgId(null);
+    showToast(
+      `Program Kerja "${check.cleanedTitle}" berhasil diperbarui secara real-time di Homepage!`
+    );
+  };
+
+  const handleSaveProgramSectionHeader = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canManageWorkPrograms(currentUser.level)) return;
+    const parsedDomains = cfgForm.allowedDomainsText
+      .split(',')
+      .map((d) => d.trim())
+      .filter(Boolean);
+    onUpdateSiteConfig({
+      siteName: cfgForm.siteName,
+      tagline: cfgForm.tagline,
+      logoUrl: cfgForm.logoUrl,
+      heroTitle: cfgForm.heroTitle,
+      heroDescription: cfgForm.heroDescription,
+      programSectionTitle: cfgForm.programSectionTitle,
+      programSectionSubtitle: cfgForm.programSectionSubtitle,
+      allowedDomains:
+        parsedDomains.length > 0 ? parsedDomains : DEFAULT_ALLOWED_DOMAINS,
+      contactPersonName: cfgForm.contactPersonName,
+      contactPersonPhone: cfgForm.contactPersonPhone,
+      contactPersonEmail: cfgForm.contactPersonEmail,
+      officeAddress: cfgForm.officeAddress,
+      footerText: cfgForm.footerText,
+    });
+    showToast(
+      'Judul & subjudul bagian Program Kerja di Homepage berhasil diperbarui!'
+    );
   };
 
   const handleAddUserSubmit = (e: React.FormEvent) => {
@@ -664,9 +844,28 @@ export function CmsWorkspace({
 
   const handleSaveSiteConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateSiteConfig(cfgForm);
+    const parsedDomains = cfgForm.allowedDomainsText
+      .split(',')
+      .map((d) => d.trim())
+      .filter(Boolean);
+    onUpdateSiteConfig({
+      siteName: cfgForm.siteName,
+      tagline: cfgForm.tagline,
+      logoUrl: cfgForm.logoUrl,
+      heroTitle: cfgForm.heroTitle,
+      heroDescription: cfgForm.heroDescription,
+      programSectionTitle: cfgForm.programSectionTitle,
+      programSectionSubtitle: cfgForm.programSectionSubtitle,
+      allowedDomains:
+        parsedDomains.length > 0 ? parsedDomains : DEFAULT_ALLOWED_DOMAINS,
+      contactPersonName: cfgForm.contactPersonName,
+      contactPersonPhone: cfgForm.contactPersonPhone,
+      contactPersonEmail: cfgForm.contactPersonEmail,
+      officeAddress: cfgForm.officeAddress,
+      footerText: cfgForm.footerText,
+    });
     showToast(
-      'Konfigurasi tampilan Website (Logo YGI, Nama Web, CP, Alamat, Hero) berhasil disimpan secara real-time!'
+      'Konfigurasi tampilan Website (Logo YGI, Nama Web, Domain Otorisasi, CP, Alamat, Hero) berhasil disimpan secara real-time!'
     );
   };
 
@@ -694,6 +893,12 @@ export function CmsWorkspace({
       label: 'Konten & Kategori',
       icon: <FileText className="w-4 h-4" />,
       badge: pendingContents.length > 0 ? pendingContents.length : undefined,
+    },
+    {
+      id: 'programs',
+      label: 'Program Kerja',
+      icon: <Layers className="w-4 h-4" />,
+      badge: workPrograms.length > 0 ? workPrograms.length : undefined,
     },
     {
       id: 'letters',
@@ -1629,6 +1834,317 @@ export function CmsWorkspace({
               </div>
             </div>
           )}
+
+          {/* ===============================================================
+              TAB 2B: WORK PROGRAMS MANAGEMENT (LEVEL 0 & LEVEL 1)
+          =============================================================== */}
+          {activeTab === 'programs' &&
+            canManageWorkPrograms(currentUser.level) && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold font-display text-[#0F2417]">
+                      Manajemen Program Kerja Organisasi (Tampil di Homepage)
+                    </h2>
+                    <p className="text-xs text-[#4B6855] mt-1">
+                      Menu khusus <strong>Superadmin (Level 0)</strong> dan{' '}
+                      <strong>Admin/Editor (Level 1)</strong> untuk mengubah,
+                      menambah, atau menghapus daftar Program Kerja yang
+                      ditampilkan pada bagian <code>#program</code> di halaman
+                      utama.
+                    </p>
+                  </div>
+                  <div className="text-xs font-mono-tabular bg-[#E6EDE8] px-3 py-1.5 rounded-lg text-[#0F2417]">
+                    Otorisasi Aktif:{' '}
+                    <strong>
+                      Level {currentUser.level} (
+                      {currentUser.roleName.toUpperCase()})
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Add New Work Program Form */}
+                  <form
+                    onSubmit={handleAddWorkProgramSubmit}
+                    className="lg:col-span-6 bg-white border border-[#D5E0D8] rounded-xl p-6 space-y-4"
+                  >
+                    <div className="border-b border-[#E2ECE5] pb-3">
+                      <h3 className="text-base font-bold font-display text-[#0F2417]">
+                        Tambah Program Kerja Baru
+                      </h3>
+                      <p className="text-xs text-[#4B6855] mt-0.5">
+                        Kartu program kerja baru akan langsung tampil pada
+                        halaman depan website.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="prog-new-code"
+                        className="block text-xs font-semibold text-[#0F2417] mb-1"
+                      >
+                        Nomor / Label Kode Program
+                      </label>
+                      <input
+                        id="prog-new-code"
+                        type="text"
+                        value={newProgCode}
+                        onChange={(e) => setNewProgCode(e.target.value)}
+                        placeholder="Contoh: 04. Ekowisata & Konservasi Adat"
+                        className="w-full px-3 py-2 text-xs bg-white border border-[#CED9D1] rounded-lg font-mono-tabular"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="prog-new-title"
+                        className="block text-xs font-semibold text-[#0F2417] mb-1"
+                      >
+                        Judul Program Kerja
+                      </label>
+                      <input
+                        id="prog-new-title"
+                        type="text"
+                        value={newProgTitle}
+                        onChange={(e) => setNewProgTitle(e.target.value)}
+                        placeholder="Contoh: Pemberdayaan Masyarakat Hutan Adat"
+                        className="w-full px-3 py-2 text-xs bg-white border border-[#CED9D1] rounded-lg"
+                      />
+                    </div>
+
+                    <div>
+                      <label
+                        htmlFor="prog-new-desc"
+                        className="block text-xs font-semibold text-[#0F2417] mb-1"
+                      >
+                        Deskripsi Program Kerja
+                      </label>
+                      <textarea
+                        id="prog-new-desc"
+                        rows={3}
+                        value={newProgDesc}
+                        onChange={(e) => setNewProgDesc(e.target.value)}
+                        placeholder="Jelaskan rincian pelaksanaan program kerja organisasi..."
+                        className="w-full px-3 py-2 text-xs bg-white border border-[#CED9D1] rounded-lg"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-semibold bg-[#1B4332] hover:bg-[#143325] text-white rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Tambahkan ke Program Kerja Homepage</span>
+                    </button>
+                  </form>
+
+                  {/* Edit Program Kerja Section Headline & Subtitle */}
+                  <form
+                    onSubmit={handleSaveProgramSectionHeader}
+                    className="lg:col-span-6 bg-white border border-[#D5E0D8] rounded-xl p-6 space-y-4 flex flex-col justify-between"
+                  >
+                    <div className="space-y-4">
+                      <div className="border-b border-[#E2ECE5] pb-3">
+                        <h3 className="text-base font-bold font-display text-[#0F2417]">
+                          Judul &amp; Subjudul Seksi Program Kerja
+                        </h3>
+                        <p className="text-xs text-[#4B6855] mt-0.5">
+                          Sesuaikan tajuk utama bagian Program Kerja pada
+                          halaman depan.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="prog-sec-title"
+                          className="block text-xs font-semibold text-[#0F2417] mb-1"
+                        >
+                          Judul Seksi Program Kerja
+                        </label>
+                        <input
+                          id="prog-sec-title"
+                          type="text"
+                          value={cfgForm.programSectionTitle}
+                          onChange={(e) =>
+                            setCfgForm({
+                              ...cfgForm,
+                              programSectionTitle: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#CED9D1] rounded-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="prog-sec-subtitle"
+                          className="block text-xs font-semibold text-[#0F2417] mb-1"
+                        >
+                          Deskripsi Subjudul Seksi Program Kerja
+                        </label>
+                        <textarea
+                          id="prog-sec-subtitle"
+                          rows={3}
+                          value={cfgForm.programSectionSubtitle}
+                          onChange={(e) =>
+                            setCfgForm({
+                              ...cfgForm,
+                              programSectionSubtitle: e.target.value,
+                            })
+                          }
+                          className="w-full px-3 py-2 text-xs bg-white border border-[#CED9D1] rounded-lg"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-fit px-4 py-2.5 text-xs font-semibold bg-[#2D6A4F] hover:bg-[#1B4332] text-white rounded-lg transition-colors cursor-pointer"
+                    >
+                      Simpan Judul Seksi Program Kerja
+                    </button>
+                  </form>
+                </div>
+
+                {/* Existing Work Programs List with Inline Edit & Delete */}
+                <div className="bg-white border border-[#D5E0D8] rounded-xl p-6 space-y-4">
+                  <div className="flex items-center justify-between border-b border-[#E2ECE5] pb-3">
+                    <div>
+                      <h3 className="text-base font-bold font-display text-[#0F2417]">
+                        Daftar Program Kerja Aktif di Homepage (
+                        {workPrograms.length})
+                      </h3>
+                      <p className="text-xs text-[#4B6855]">
+                        Klik <strong>Ubah Program</strong> untuk menyunting teks
+                        kartu Program Kerja secara langsung.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                    {workPrograms.map((prog) => {
+                      const isEditing = editingProgId === prog.id;
+                      return (
+                        <div
+                          key={prog.id}
+                          className="bg-[#F6F8F6] border border-[#CED9D1] rounded-xl p-5 flex flex-col justify-between gap-4"
+                        >
+                          {isEditing ? (
+                            <div className="space-y-3">
+                              <div>
+                                <label className="block text-[11px] font-semibold text-[#0F2417] mb-1">
+                                  Kode / Nomor Program
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editProgCode}
+                                  onChange={(e) =>
+                                    setEditProgCode(e.target.value)
+                                  }
+                                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-[#1B4332] rounded-md font-mono-tabular"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-semibold text-[#0F2417] mb-1">
+                                  Judul Program Kerja
+                                </label>
+                                <input
+                                  type="text"
+                                  value={editProgTitle}
+                                  onChange={(e) =>
+                                    setEditProgTitle(e.target.value)
+                                  }
+                                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-[#1B4332] rounded-md font-semibold"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] font-semibold text-[#0F2417] mb-1">
+                                  Deskripsi Program
+                                </label>
+                                <textarea
+                                  rows={3}
+                                  value={editProgDesc}
+                                  onChange={(e) =>
+                                    setEditProgDesc(e.target.value)
+                                  }
+                                  className="w-full px-2.5 py-1.5 text-xs bg-white border border-[#1B4332] rounded-md"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleSaveEditWorkProgram(prog.id)
+                                  }
+                                  className="px-3 py-1.5 text-xs font-semibold bg-[#1B4332] hover:bg-[#143325] text-white rounded-md cursor-pointer"
+                                >
+                                  Simpan Perubahan
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingProgId(null)}
+                                  className="px-3 py-1.5 text-xs font-semibold bg-[#E6EDE8] hover:bg-[#D5E0D8] text-[#0F2417] rounded-md cursor-pointer"
+                                >
+                                  Batal
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <p className="text-xs font-mono-tabular font-semibold text-[#2D6A4F] mb-1.5">
+                                  {prog.code}
+                                </p>
+                                <h4 className="text-base font-bold font-display text-[#0F2417] mb-2">
+                                  {prog.title}
+                                </h4>
+                                <p className="text-xs text-[#3A5243] leading-relaxed">
+                                  {prog.description}
+                                </p>
+                              </div>
+
+                              <div className="pt-3 border-t border-[#DCE6DF] flex items-center justify-between gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingProgId(prog.id);
+                                    setEditProgCode(prog.code);
+                                    setEditProgTitle(prog.title);
+                                    setEditProgDesc(prog.description);
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-white hover:bg-[#EBF1ED] text-[#1B4332] border border-[#CED9D1] rounded-md transition-colors cursor-pointer"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                  <span>Ubah Program</span>
+                                </button>
+
+                                {workPrograms.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      onDeleteWorkProgram(prog.id);
+                                      showToast(
+                                        `Program Kerja "${prog.title}" telah dihapus.`
+                                      );
+                                    }}
+                                    aria-label={`Hapus program ${prog.title}`}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Hapus</span>
+                                  </button>
+                                )}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
 
           {/* ===============================================================
               TAB 3: AUTOMATED ORGANIZATIONAL LETTER GENERATOR & COUNTER
@@ -2973,20 +3489,20 @@ export function CmsWorkspace({
                 {/* Logo Organisasi YGI Upload Section */}
                 <div className="p-4 bg-[#F6F8F6] border border-[#CED9D1] rounded-xl space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3.5">
+                    <div className="flex items-center gap-4">
                       <img
                         src={cfgForm.logoUrl || DEFAULT_YGI_LOGO_DATA_URL}
                         alt="Pratinjau Logo Organisasi YGI"
                         data-testid="cms-logo-preview"
                         referrerPolicy="no-referrer"
-                        className="w-14 h-14 rounded-lg object-contain bg-[#0F291E] border border-[#1B4332] p-1 shrink-0"
+                        className="h-20 w-auto min-w-[5rem] max-w-[240px] rounded-xl object-contain object-center bg-[#0F291E] border border-[#1B4332] p-1.5 shrink-0 block"
                       />
                       <div>
                         <p className="text-xs font-bold text-[#0F2417]">
-                          Logo Organisasi YGI (Tampil di Halaman Utama)
+                          Logo Organisasi YGI (Ukuran Diperbesar &amp; Utuh Tanpa Terpotong)
                         </p>
                         <p className="text-[11px] text-[#4B6855]">
-                          Unggah gambar logo resmi Yayasan Gunung Parama Indonesia (.png, .jpg, .svg, .webp) untuk ditampilkan di header &amp; footer halaman utama.
+                          Unggah gambar logo resmi Yayasan Gunung Parama Indonesia (.png, .jpg, .svg, .webp). Sistem otomatis menyesuaikan rasio penuh tanpa memotong bagian bawah logo.
                         </p>
                       </div>
                     </div>
@@ -3214,6 +3730,32 @@ export function CmsWorkspace({
                       setCfgForm({ ...cfgForm, footerText: e.target.value })
                     }
                     className="w-full px-3 py-2 text-xs bg-white border border-[#CED9D1] rounded-lg"
+                  />
+                </div>
+
+                {/* Allowed Deployment Domains for Google OAuth (Vercel & Custom Domains) */}
+                <div className="p-4 bg-[#F6F8F6] border border-[#CED9D1] rounded-xl space-y-2">
+                  <label
+                    htmlFor="cfg-allowed-domains"
+                    className="block text-xs font-bold text-[#0F2417]"
+                  >
+                    Allowlist Domain Otorisasi Login Google (Termasuk Vercel Deployment)
+                  </label>
+                  <p className="text-[11px] text-[#4B6855]">
+                    Daftar domain yang diizinkan untuk autentikasi Google OAuth (pisahkan dengan koma). Domain <strong>https://ygi-omega.vercel.app/</strong> (<code>ygi-omega.vercel.app</code>) telah ditambahkan secara default.
+                  </p>
+                  <input
+                    id="cfg-allowed-domains"
+                    type="text"
+                    value={cfgForm.allowedDomainsText}
+                    onChange={(e) =>
+                      setCfgForm({
+                        ...cfgForm,
+                        allowedDomainsText: e.target.value,
+                      })
+                    }
+                    placeholder="ygi-omega.vercel.app, https://ygi-omega.vercel.app, level-router-mcf5x.firebaseapp.com, localhost"
+                    className="w-full px-3 py-2 text-xs bg-white border border-[#CED9D1] rounded-lg font-mono-tabular"
                   />
                 </div>
 

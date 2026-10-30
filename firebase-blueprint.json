@@ -781,7 +781,8 @@
             "CONTENT_APPROVED",
             "TASK_REPORT_SUBMITTED",
             "USER_PRIVILEGE_UPDATED",
-            "SITE_CONFIG_UPDATED"
+            "SITE_CONFIG_UPDATED",
+            "WORK_PROGRAM_UPDATED"
           ]
         },
         "targetId": {
@@ -827,6 +828,7 @@
             "categories",
             "contents",
             "comments",
+            "programs",
             "templates",
             "letters",
             "reports",

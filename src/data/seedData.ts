@@ -1,5 +1,6 @@
 import {
   SiteConfig,
+  WorkProgramItem,
   UserProfile,
   CategoryItem,
   ContentArticle,
@@ -11,6 +12,7 @@ import {
   ActivityLog,
   getDefaultPermissionsForLevel,
   DEFAULT_YGI_LOGO_DATA_URL,
+  DEFAULT_ALLOWED_DOMAINS,
 } from '../utils/cmsLogic';
 
 export const SUPERADMIN_ACCESS_KEY = 'WANA-SUPER-2026';
@@ -22,6 +24,10 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
   heroTitle: 'Menjaga Kanopi Hutan Nusantara Melalui Transparansi Data & Aksi Lapangan',
   heroDescription:
     'Portal informasi publik, publikasi ilmiah restorasi daerah aliran sungai, serta sistem tata kelola organisasi dan penugasan konservasi terpadu berbasis cloud.',
+  programSectionTitle: 'Arsitektur Tata Kelola Hutan & Kepatuhan Organisasi',
+  programSectionSubtitle:
+    'Seluruh kegiatan operasional Yayasan Gunung Parama Indonesia dijalankan dengan sistem otorisasi berjenjang, penomoran surat otomatis, dan pelaporan bukti lapangan yang transparan.',
+  allowedDomains: [...DEFAULT_ALLOWED_DOMAINS],
   contactPersonName: 'Dr. Hendra Wijaya, M.Hut (Humas & Kemitraan)',
   contactPersonPhone: '+62 812-8890-4412',
   contactPersonEmail: 'sekretariat@wanalestari.or.id',
@@ -30,6 +36,36 @@ export const INITIAL_SITE_CONFIG: SiteConfig = {
   updatedBy: 'usr_superadmin_01',
   updatedAt: '2026-10-28T08:00:00.000Z',
 };
+
+export const INITIAL_WORK_PROGRAMS: WorkProgramItem[] = [
+  {
+    id: 'prog_01',
+    code: '01. Kurasi Konten Berjenjang',
+    title: 'Verifikasi Data Ilmiah & Lapangan',
+    description:
+      'Kontributor lapangan (Level 2) mengirimkan laporan dan artikel yang wajib diverifikasi oleh Editor atau Admin (Level 1) sebelum tampil kepada publik.',
+    updatedBy: 'usr_superadmin_01',
+    updatedAt: '2026-10-28T08:00:00.000Z',
+  },
+  {
+    id: 'prog_02',
+    code: '02. E-Surat & Penugasan Otomatis',
+    title: 'Penomoran Berurutan & Notifikasi Atasan',
+    description:
+      'Penerbitan Surat Tugas secara otomatis meningkatkan counter nomor surat di database, memberi tahu penerima tugas serta atasan pengawas, dan mencatat log audit.',
+    updatedBy: 'usr_superadmin_01',
+    updatedAt: '2026-10-28T08:00:00.000Z',
+  },
+  {
+    id: 'prog_03',
+    code: '03. Akuntabilitas Laporan Kegiatan',
+    title: 'Lampiran Bukti Foto & Dokumen Pendukung',
+    description:
+      'Setiap Surat Tugas yang telah dilaksanakan wajib dilengkapi laporan capaian beserta bukti visual dan dokumen Berita Acara yang terpantau pada dashboard analitik.',
+    updatedBy: 'usr_superadmin_01',
+    updatedAt: '2026-10-28T08:00:00.000Z',
+  },
+];
 
 export const INITIAL_USERS: UserProfile[] = [
   {

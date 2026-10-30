@@ -453,14 +453,67 @@ test('normalizeSiteConfig migrates legacy Wana Lestari Nusantara to Yayasan Gunu
   );
   assert.equal(custom.siteName, 'Yayasan Gunung Parama Indonesia — Sektor Kalimantan');
 
-  // sanitizeForFirestore strips undefined fields cleanly
+  // sanitizeForFirestore strips undefined fields cleanly and never truncates data:image base64 logos
+  const largeLogoDataUrl = 'data:image/png;base64,' + 'A'.repeat(400000);
   const cleaned = sanitizeForFirestore({
     id: 'art_1',
     title: 'Judul',
     mediaUrl: undefined,
+    logoUrl: largeLogoDataUrl,
   });
   assert.equal('mediaUrl' in cleaned, false);
   assert.equal(cleaned.title, 'Judul');
+  assert.equal(cleaned.logoUrl.length, largeLogoDataUrl.length);
+  assert.equal(cleaned.logoUrl.endsWith('AAAA'), true);
 });
+
+test('Work Program RBAC (Level 0 & Level 1), Vercel domain allowlist, and /login route detection', async () => {
+  const {
+    canManageWorkPrograms,
+    validateAndFormatWorkProgram,
+    getVisibleCmsTabsForLevel,
+    isAllowedAuthDomain,
+    isLoginRoutePath,
+    DEFAULT_ALLOWED_DOMAINS,
+  } = await import('./cmsLogic');
+
+  // Level 0 and Level 1 can manage Work Programs, Level 2 cannot
+  assert.equal(canManageWorkPrograms(0), true);
+  assert.equal(canManageWorkPrograms(1), true);
+  assert.equal(canManageWorkPrograms(2), false);
+
+  assert.equal(getVisibleCmsTabsForLevel(0).includes('programs'), true);
+  assert.equal(getVisibleCmsTabsForLevel(1).includes('programs'), true);
+  assert.equal(getVisibleCmsTabsForLevel(2).includes('programs'), false);
+
+  const validProg = validateAndFormatWorkProgram(
+    '  01. Kurasi Konten  ',
+    '  Verifikasi Data Ilmiah  ',
+    '  Kontributor mengirimkan laporan yang diverifikasi oleh Admin Level 1.  '
+  );
+  assert.equal(validProg.valid, true);
+  assert.equal(validProg.cleanedCode, '01. Kurasi Konten');
+  assert.equal(validProg.cleanedTitle, 'Verifikasi Data Ilmiah');
+
+  const invalidProg = validateAndFormatWorkProgram('01', 'Ab', 'Terlalu pendek');
+  assert.equal(invalidProg.valid, false);
+
+  // Vercel domain https://ygi-omega.vercel.app/ is allowed
+  assert.equal(
+    DEFAULT_ALLOWED_DOMAINS.some((d) => d.includes('ygi-omega.vercel.app')),
+    true
+  );
+  assert.equal(isAllowedAuthDomain('https://ygi-omega.vercel.app/'), true);
+  assert.equal(isAllowedAuthDomain('ygi-omega.vercel.app'), true);
+  assert.equal(isAllowedAuthDomain('preview-123.vercel.app'), true);
+
+  // /login route detection
+  assert.equal(isLoginRoutePath('/login'), true);
+  assert.equal(isLoginRoutePath('/login/'), true);
+  assert.equal(isLoginRoutePath('/', '#/login'), true);
+  assert.equal(isLoginRoutePath('/', '', '?login=1'), true);
+  assert.equal(isLoginRoutePath('/'), false);
+});
+
 
 

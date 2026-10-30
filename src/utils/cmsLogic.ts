@@ -1,12 +1,24 @@
 export type UserLevel = 0 | 1 | 2;
 export type RoleName = 'superadmin' | 'admin' | 'editor' | 'contributor';
 
+export interface WorkProgramItem {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  updatedBy: string;
+  updatedAt: string;
+}
+
 export interface SiteConfig {
   siteName: string;
   tagline: string;
   logoUrl?: string;
   heroTitle: string;
   heroDescription: string;
+  programSectionTitle?: string;
+  programSectionSubtitle?: string;
+  allowedDomains?: string[];
   contactPersonName: string;
   contactPersonPhone: string;
   contactPersonEmail: string;
@@ -160,7 +172,8 @@ export interface ActivityLog {
     | 'CONTENT_APPROVED'
     | 'TASK_REPORT_SUBMITTED'
     | 'USER_PRIVILEGE_UPDATED'
-    | 'SITE_CONFIG_UPDATED';
+    | 'SITE_CONFIG_UPDATED'
+    | 'WORK_PROGRAM_UPDATED';
   targetId: string;
   details: string;
   createdAt: string;
@@ -412,11 +425,156 @@ export function canSuperadminDeleteUser(
   return actorLevel === 0 && actorUid !== targetUid;
 }
 
+export function canManageWorkPrograms(actorLevel: UserLevel): boolean {
+  return actorLevel === 0 || actorLevel === 1;
+}
+
+export function validateAndFormatWorkProgram(
+  codeOrInput:
+    | string
+    | {
+        code: string;
+        title: string;
+        description: string;
+      },
+  rawTitle?: string,
+  rawDescription?: string
+): {
+  valid: boolean;
+  code: string;
+  title: string;
+  description: string;
+  cleanedCode: string;
+  cleanedTitle: string;
+  cleanedDescription: string;
+  error?: string;
+} {
+  const rawCodeStr =
+    typeof codeOrInput === 'string' ? codeOrInput : codeOrInput?.code || '';
+  const rawTitleStr =
+    typeof codeOrInput === 'string'
+      ? rawTitle || ''
+      : codeOrInput?.title || '';
+  const rawDescStr =
+    typeof codeOrInput === 'string'
+      ? rawDescription || ''
+      : codeOrInput?.description || '';
+
+  const code = rawCodeStr.trim().slice(0, 60);
+  const title = rawTitleStr.trim().slice(0, 140);
+  const description = rawDescStr.trim().slice(0, 800);
+
+  if (code.length < 2) {
+    return {
+      valid: false,
+      code,
+      title,
+      description,
+      cleanedCode: code,
+      cleanedTitle: title,
+      cleanedDescription: description,
+      error: 'Kode / Nomor Program Kerja wajib diisi (minimal 2 karakter).',
+    };
+  }
+  if (title.length < 3) {
+    return {
+      valid: false,
+      code,
+      title,
+      description,
+      cleanedCode: code,
+      cleanedTitle: title,
+      cleanedDescription: description,
+      error: 'Judul Program Kerja wajib diisi (minimal 3 karakter).',
+    };
+  }
+  if (description.length < 10) {
+    return {
+      valid: false,
+      code,
+      title,
+      description,
+      cleanedCode: code,
+      cleanedTitle: title,
+      cleanedDescription: description,
+      error: 'Deskripsi Program Kerja wajib diisi (minimal 10 karakter).',
+    };
+  }
+  return {
+    valid: true,
+    code,
+    title,
+    description,
+    cleanedCode: code,
+    cleanedTitle: title,
+    cleanedDescription: description,
+  };
+}
+
+export const DEFAULT_ALLOWED_DOMAINS: string[] = [
+  'ygi-omega.vercel.app',
+  'https://ygi-omega.vercel.app',
+  'level-router-mcf5x.firebaseapp.com',
+  'localhost',
+];
+
+export function normalizeDomainEntry(raw: string): string {
+  const trimmed = raw.trim().toLowerCase().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  try {
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+      return new URL(trimmed).hostname.toLowerCase();
+    }
+  } catch {
+    // ignore URL parse error
+  }
+  return trimmed.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+}
+
+export function isAllowedAuthDomain(
+  hostnameOrOrigin: string,
+  allowedList: string[] = DEFAULT_ALLOWED_DOMAINS
+): boolean {
+  const host = normalizeDomainEntry(hostnameOrOrigin);
+  if (!host) return false;
+  if (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === 'ygi-omega.vercel.app' ||
+    host.endsWith('.vercel.app') ||
+    host.endsWith('.run.app') ||
+    host.endsWith('.firebaseapp.com') ||
+    host.endsWith('.web.app')
+  ) {
+    return true;
+  }
+  const normalizedList = allowedList.map(normalizeDomainEntry).filter(Boolean);
+  return normalizedList.includes(host);
+}
+
+export function isLoginRoutePath(
+  pathname: string,
+  hash = '',
+  search = ''
+): boolean {
+  const cleanPath = (pathname || '').trim().toLowerCase().replace(/\/+$/, '');
+  const cleanHash = (hash || '').trim().toLowerCase();
+  const cleanSearch = (search || '').trim().toLowerCase();
+  return (
+    cleanPath === '/login' ||
+    cleanPath.endsWith('/login') ||
+    cleanHash === '#/login' ||
+    cleanHash === '#login' ||
+    cleanSearch.includes('login=1')
+  );
+}
+
 export function getVisibleCmsTabsForLevel(
   level: UserLevel
 ): Array<
   | 'dashboard'
   | 'contents'
+  | 'programs'
   | 'letters'
   | 'reports'
   | 'users'
@@ -427,6 +585,7 @@ export function getVisibleCmsTabsForLevel(
     return [
       'dashboard',
       'contents',
+      'programs',
       'letters',
       'reports',
       'users',
@@ -434,7 +593,18 @@ export function getVisibleCmsTabsForLevel(
       'notifications',
     ];
   }
-  // Level 1 and Level 2 do NOT see 'users' (RBAC) or 'settings' (Konfigurasi Website & CP)
+  if (level === 1) {
+    // Level 1 (Admin / Editor) can manage Program Kerja alongside content, letters, reports, and notifications
+    return [
+      'dashboard',
+      'contents',
+      'programs',
+      'letters',
+      'reports',
+      'notifications',
+    ];
+  }
+  // Level 2 (Contributor) does NOT see 'programs', 'users', or 'settings'
   return ['dashboard', 'contents', 'letters', 'reports', 'notifications'];
 }
 
@@ -827,7 +997,13 @@ export function normalizeSiteConfig(
   fallback: SiteConfig
 ): SiteConfig {
   if (!raw || typeof raw !== 'object') {
-    return { ...fallback, siteName: DEFAULT_ORGANIZATION_NAME };
+    return {
+      ...fallback,
+      siteName: DEFAULT_ORGANIZATION_NAME,
+      allowedDomains: Array.from(
+        new Set([...(fallback.allowedDomains || []), ...DEFAULT_ALLOWED_DOMAINS])
+      ),
+    };
   }
 
   const rawSiteName =
@@ -844,6 +1020,13 @@ export function normalizeSiteConfig(
   const normalizedFooter = rawFooter.replace(
     /Wana Lestari Nusantara/g,
     DEFAULT_ORGANIZATION_NAME
+  );
+
+  const rawDomains = Array.isArray(raw.allowedDomains)
+    ? raw.allowedDomains.filter((d): d is string => typeof d === 'string' && d.trim().length > 0)
+    : fallback.allowedDomains || [];
+  const mergedDomains = Array.from(
+    new Set([...DEFAULT_ALLOWED_DOMAINS, ...rawDomains])
   );
 
   return {
@@ -864,6 +1047,17 @@ export function normalizeSiteConfig(
       typeof raw.heroDescription === 'string' && raw.heroDescription.trim()
         ? raw.heroDescription
         : fallback.heroDescription,
+    programSectionTitle:
+      typeof raw.programSectionTitle === 'string' && raw.programSectionTitle.trim()
+        ? raw.programSectionTitle
+        : fallback.programSectionTitle ||
+          'Arsitektur Tata Kelola Hutan & Program Kerja Organisasi',
+    programSectionSubtitle:
+      typeof raw.programSectionSubtitle === 'string' && raw.programSectionSubtitle.trim()
+        ? raw.programSectionSubtitle
+        : fallback.programSectionSubtitle ||
+          `Seluruh kegiatan operasional ${normalizedSiteName} dijalankan dengan sistem otorisasi berjenjang, penomoran surat otomatis, dan pelaporan bukti lapangan yang transparan.`,
+    allowedDomains: mergedDomains,
     contactPersonName:
       typeof raw.contactPersonName === 'string' && raw.contactPersonName.trim()
         ? raw.contactPersonName
@@ -897,7 +1091,11 @@ export function sanitizeForFirestore<T>(value: T): T {
     return '' as unknown as T;
   }
   if (typeof value === 'string') {
-    // Prevent exceeding Firestore 1MB document limit on large inline base64 strings
+    // Do NOT slice base64 data:image/ strings mid-stream (slicing corrupts the bottom of the image).
+    // Allow full data:image/ strings up to 950,000 chars; only cap non-image text strings at 350,000.
+    if (value.startsWith('data:image/')) {
+      return value as unknown as T;
+    }
     if (value.length > 350000) {
       return value.slice(0, 350000) as unknown as T;
     }

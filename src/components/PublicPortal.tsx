@@ -5,19 +5,21 @@ import {
   ContentArticle,
   CommentItem,
   UserProfile,
+  WorkProgramItem,
   DEFAULT_YGI_LOGO_DATA_URL,
 } from '../utils/cmsLogic';
 import {
   HeroForestIllustration,
   ArticleThemeIllustration,
 } from './ForestIllustrations';
-import { Search, MessageSquare, Send, Trash2, ArrowUpRight, ShieldCheck } from 'lucide-react';
+import { Search, MessageSquare, Send, Trash2, ArrowUpRight } from 'lucide-react';
 
 interface PublicPortalProps {
   siteConfig: SiteConfig;
   categories: CategoryItem[];
   contents: ContentArticle[];
   comments: CommentItem[];
+  workPrograms: WorkProgramItem[];
   currentUser: UserProfile | null;
   onOpenCms: () => void;
   onAddComment: (articleId: string, authorName: string, message: string) => void;
@@ -29,6 +31,7 @@ export function PublicPortal({
   categories,
   contents,
   comments,
+  workPrograms,
   currentUser,
   onOpenCms,
   onAddComment,
@@ -90,21 +93,21 @@ export function PublicPortal({
       {/* Strictly enforced 3-Zone Top Bar Contract */}
       <header className="sticky top-0 z-30 bg-[#0F291E] text-white border-b border-[#1E4631]">
         <div className="max-w-[1280px] mx-auto flex items-center justify-between gap-8 px-6 py-4">
-          {/* Zone 1: Organization Logo YGI + Wordmark */}
+          {/* Zone 1: Organization Logo YGI (Larger & Uncropped) + Wordmark */}
           <a
             href="#beranda"
-            className="flex items-center gap-3 text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0 font-display"
+            className="flex items-center gap-4 text-lg font-bold tracking-tight text-white whitespace-nowrap shrink-0 font-display"
           >
             <img
               src={siteConfig.logoUrl || DEFAULT_YGI_LOGO_DATA_URL}
               alt={`Logo YGI ${siteConfig.siteName}`}
               data-testid="public-org-logo"
               referrerPolicy="no-referrer"
-              className="w-10 h-10 rounded-lg object-contain bg-[#163829] border border-emerald-700/60 p-0.5 shrink-0"
+              className="h-16 md:h-20 w-auto min-w-[4rem] max-w-[240px] rounded-xl object-contain object-center bg-[#163829] border border-emerald-700/60 p-1.5 shrink-0 block"
             />
             <div className="flex flex-col">
-              <span className="leading-tight">{siteConfig.siteName}</span>
-              <span className="text-[10px] font-mono-tabular font-semibold text-emerald-300 tracking-wider">
+              <span className="leading-tight text-lg md:text-xl">{siteConfig.siteName}</span>
+              <span className="text-[11px] font-mono-tabular font-semibold text-emerald-300 tracking-wider">
                 YAYASAN GUNUNG PARAMA INDONESIA (YGI)
               </span>
             </div>
@@ -143,14 +146,17 @@ export function PublicPortal({
 
           {/* Zone 3: 1 Primary Action Button */}
           <div className="flex items-center shrink-0">
-            <button
-              type="button"
+            <a
+              href="/login"
               data-testid="open-login-modal-btn"
-              onClick={onOpenCms}
-              className="px-4 py-2 text-xs font-semibold text-[#0F291E] bg-[#A7F3D0] hover:bg-[#6EE7B7] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              onClick={(e) => {
+                e.preventDefault();
+                onOpenCms();
+              }}
+              className="px-4 py-2 text-xs font-semibold text-[#0F291E] bg-[#A7F3D0] hover:bg-[#6EE7B7] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer inline-flex items-center justify-center"
             >
-              {currentUser ? `Dashboard CMS (${currentUser.roleName.toUpperCase()})` : 'Masuk Portal CMS'}
-            </button>
+              {currentUser ? `Dashboard CMS (${currentUser.roleName.toUpperCase()})` : 'Login'}
+            </a>
           </div>
         </div>
       </header>
@@ -426,7 +432,7 @@ export function PublicPortal({
           )}
         </section>
 
-        {/* Core Organizational Governance & Capabilities Section */}
+        {/* Core Organizational Governance & Work Programs Section (Managed via CMS Level 0 & 1) */}
         <section
           id="program"
           className="py-14 bg-[#EBF1ED] border-y border-[#D5E0D8]"
@@ -434,107 +440,74 @@ export function PublicPortal({
           <div className="max-w-[1280px] mx-auto px-6">
             <div className="max-w-2xl mb-10">
               <h2 className="text-2xl md:text-3xl font-bold font-display text-[#0F2417] tracking-tight">
-                Arsitektur Tata Kelola Hutan &amp; Kepatuhan Organisasi
+                {siteConfig.programSectionTitle ||
+                  'Arsitektur Tata Kelola Hutan & Kepatuhan Organisasi'}
               </h2>
               <p className="text-sm text-[#3A5243] mt-2 leading-relaxed">
-                Seluruh kegiatan operasional {siteConfig.siteName} dijalankan dengan sistem otorisasi berjenjang, penomoran surat otomatis, dan pelaporan bukti lapangan yang transparan.
+                {siteConfig.programSectionSubtitle ||
+                  `Seluruh kegiatan operasional ${siteConfig.siteName} dijalankan dengan sistem otorisasi berjenjang, penomoran surat otomatis, dan pelaporan bukti lapangan yang transparan.`}
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white border border-[#D5E0D8] rounded-xl p-6">
-                <p className="text-xs font-mono-tabular font-semibold text-[#2D6A4F] mb-2">
-                  01. Kurasi Konten Berjenjang
-                </p>
-                <h3 className="text-lg font-bold font-display text-[#0F2417] mb-2">
-                  Verifikasi Data Ilmiah &amp; Lapangan
-                </h3>
-                <p className="text-sm text-[#3A5243] leading-relaxed">
-                  Kontributor lapangan (Level 2) mengirimkan laporan dan artikel yang wajib diverifikasi oleh Editor atau Admin (Level 1) sebelum tampil kepada publik.
-                </p>
-              </div>
-
-              <div className="bg-white border border-[#D5E0D8] rounded-xl p-6">
-                <p className="text-xs font-mono-tabular font-semibold text-[#2D6A4F] mb-2">
-                  02. E-Surat &amp; Penugasan Otomatis
-                </p>
-                <h3 className="text-lg font-bold font-display text-[#0F2417] mb-2">
-                  Penomoran Berurutan &amp; Notifikasi Atasan
-                </h3>
-                <p className="text-sm text-[#3A5243] leading-relaxed">
-                  Penerbitan Surat Tugas secara otomatis meningkatkan counter nomor surat di database, memberi tahu penerima tugas serta atasan pengawas, dan mencatat log audit.
-                </p>
-              </div>
-
-              <div className="bg-white border border-[#D5E0D8] rounded-xl p-6">
-                <p className="text-xs font-mono-tabular font-semibold text-[#2D6A4F] mb-2">
-                  03. Akuntabilitas Laporan Kegiatan
-                </p>
-                <h3 className="text-lg font-bold font-display text-[#0F2417] mb-2">
-                  Lampiran Bukti Foto &amp; Dokumen Pendukung
-                </h3>
-                <p className="text-sm text-[#3A5243] leading-relaxed">
-                  Setiap Surat Tugas yang telah dilaksanakan wajib dilengkapi laporan capaian beserta bukti visual dan dokumen Berita Acara yang terpantau pada dashboard analitik.
-                </p>
-              </div>
+              {workPrograms.map((prog) => (
+                <div
+                  key={prog.id}
+                  data-testid={`work-program-card-${prog.id}`}
+                  className="bg-white border border-[#D5E0D8] rounded-xl p-6 flex flex-col justify-between"
+                >
+                  <div>
+                    <p className="text-xs font-mono-tabular font-semibold text-[#2D6A4F] mb-2">
+                      {prog.code}
+                    </p>
+                    <h3 className="text-lg font-bold font-display text-[#0F2417] mb-2">
+                      {prog.title}
+                    </h3>
+                    <p className="text-sm text-[#3A5243] leading-relaxed">
+                      {prog.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </section>
 
-        {/* Configurable Contact & CP Section */}
+        {/* Configurable Contact & CP Section (Layanan Informasi & Kemitraan Publik card removed) */}
         <section id="kontak" className="py-14 max-w-[1280px] mx-auto px-6">
           <div className="bg-[#0F291E] text-white rounded-xl p-8 lg:p-10 border border-[#1E4631]">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-              <div className="lg:col-span-7">
-                <p className="text-xs font-mono-tabular text-emerald-300 mb-2">
-                  KONTAK RESMI &amp; NARAHUBUNG ORGANISASI (DIKELOLA VIA CMS)
-                </p>
-                <h2 className="text-2xl md:text-3xl font-bold font-display text-white mb-3">
-                  Hubungi Sekretariat {siteConfig.siteName}
-                </h2>
-                <p className="text-sm text-emerald-100/85 leading-relaxed max-w-xl mb-6">
-                  Informasi nama website, narahubung (Contact Person), nomor telepon, email, serta alamat kantor di bawah ini terhubung langsung dengan konfigurasi CMS dan dapat diperbarui kapan saja oleh Admin.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                  <div className="bg-[#163829] border border-emerald-800/70 rounded-lg p-4">
-                    <p className="text-xs text-emerald-300/80 mb-1">
-                      Contact Person (CP)
-                    </p>
-                    <p className="font-semibold text-white">
-                      {siteConfig.contactPersonName}
-                    </p>
-                    <p className="text-xs font-mono-tabular text-emerald-200 mt-1">
-                      {siteConfig.contactPersonPhone}
-                    </p>
-                  </div>
-                  <div className="bg-[#163829] border border-emerald-800/70 rounded-lg p-4">
-                    <p className="text-xs text-emerald-300/80 mb-1">
-                      Surat Elektronik &amp; Kantor Pusat
-                    </p>
-                    <p className="font-semibold text-white font-mono-tabular">
-                      {siteConfig.contactPersonEmail}
-                    </p>
-                    <p className="text-xs text-emerald-200 mt-1">
-                      {siteConfig.officeAddress}
-                    </p>
-                  </div>
+            <div className="max-w-3xl">
+              <p className="text-xs font-mono-tabular text-emerald-300 mb-2">
+                KONTAK RESMI &amp; NARAHUBUNG ORGANISASI (DIKELOLA VIA CMS)
+              </p>
+              <h2 className="text-2xl md:text-3xl font-bold font-display text-white mb-3">
+                Hubungi Sekretariat {siteConfig.siteName}
+              </h2>
+              <p className="text-sm text-emerald-100/85 leading-relaxed max-w-2xl mb-6">
+                Informasi nama website, narahubung (Contact Person), nomor telepon, email, serta alamat kantor di bawah ini terhubung langsung dengan konfigurasi CMS dan dapat diperbarui kapan saja oleh Admin.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div className="bg-[#163829] border border-emerald-800/70 rounded-lg p-5">
+                  <p className="text-xs text-emerald-300/80 mb-1">
+                    Contact Person (CP)
+                  </p>
+                  <p className="font-semibold text-white">
+                    {siteConfig.contactPersonName}
+                  </p>
+                  <p className="text-xs font-mono-tabular text-emerald-200 mt-1">
+                    {siteConfig.contactPersonPhone}
+                  </p>
                 </div>
-              </div>
-
-              <div className="lg:col-span-5 bg-[#163829] border border-emerald-800/80 rounded-xl p-6">
-                <div className="flex items-center gap-2 text-emerald-300 text-xs font-semibold mb-2">
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>Layanan Informasi &amp; Kemitraan Publik</span>
-                </div>
-                <h3 className="text-lg font-bold font-display text-white mb-2">
-                  Jam Operasional Sekretariat &amp; Pengaduan Lapangan
-                </h3>
-                <p className="text-xs text-emerald-100/80 leading-relaxed mb-4">
-                  Masyarakat adat, mitra konservasi, dan akademisi dapat menghubungi narahubung resmi untuk permohonan data publikasi, kolaborasi restorasi DAS, maupun pelaporan kondisi kawasan hutan.
-                </p>
-                <div className="p-3.5 bg-[#0F291E] border border-emerald-800/70 rounded-lg text-xs text-emerald-200 space-y-1 font-mono-tabular">
-                  <p>Senin – Jumat : 08.00 – 17.00 WIB</p>
-                  <p>Posko Tanggap : 24 Jam (Patroli Terpadu)</p>
+                <div className="bg-[#163829] border border-emerald-800/70 rounded-lg p-5">
+                  <p className="text-xs text-emerald-300/80 mb-1">
+                    Surat Elektronik &amp; Kantor Pusat
+                  </p>
+                  <p className="font-semibold text-white font-mono-tabular">
+                    {siteConfig.contactPersonEmail}
+                  </p>
+                  <p className="text-xs text-emerald-200 mt-1">
+                    {siteConfig.officeAddress}
+                  </p>
                 </div>
               </div>
             </div>
@@ -545,12 +518,13 @@ export function PublicPortal({
       {/* Quiet Footer */}
       <footer className="bg-[#0B1F17] text-emerald-100/75 border-t border-[#1E4631] py-8">
         <div className="max-w-[1280px] mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3.5">
             <img
               src={siteConfig.logoUrl || DEFAULT_YGI_LOGO_DATA_URL}
               alt={`Logo Footer YGI ${siteConfig.siteName}`}
+              data-testid="public-footer-logo"
               referrerPolicy="no-referrer"
-              className="w-7 h-7 rounded object-contain bg-[#163829] border border-emerald-800/70 p-0.5 shrink-0"
+              className="h-16 md:h-20 w-16 md:w-20 rounded-xl object-contain object-center bg-white border border-emerald-700/80 p-1 shrink-0 block"
             />
             <div>
               <span className="font-bold text-white">{siteConfig.siteName} (YGI)</span>

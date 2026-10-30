@@ -7,6 +7,17 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account',
+});
+
+export const ALLOWED_DEPLOYMENT_DOMAINS = [
+  'ygi-omega.vercel.app',
+  'https://ygi-omega.vercel.app',
+  'https://ygi-omega.vercel.app/',
+  'level-router-mcf5x.firebaseapp.com',
+  'localhost',
+];
 
 export enum OperationType {
   CREATE = 'create',

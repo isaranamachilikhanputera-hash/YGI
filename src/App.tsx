@@ -63,6 +63,10 @@ import {
   buildTaskReportApprovalNotifications,
   normalizeSiteConfig,
   sanitizeForFirestore,
+  WorkProgramItem,
+  canManageWorkPrograms,
+  validateAndFormatWorkProgram,
+  isLoginRoutePath,
 } from './utils/cmsLogic';
 import {
   INITIAL_SITE_CONFIG,
@@ -70,6 +74,7 @@ import {
   INITIAL_CATEGORIES,
   INITIAL_CONTENTS,
   INITIAL_COMMENTS,
+  INITIAL_WORK_PROGRAMS,
   INITIAL_LETTER_TEMPLATES,
   INITIAL_LETTERS,
   INITIAL_TASK_REPORTS,
@@ -112,6 +117,7 @@ type CmsStateSection =
   | 'categories'
   | 'contents'
   | 'comments'
+  | 'programs'
   | 'templates'
   | 'letters'
   | 'reports'
@@ -141,6 +147,9 @@ export default function App() {
   const [comments, setComments] = useState<CommentItem[]>(() =>
     loadPersistedState<CommentItem[]>('comments', INITIAL_COMMENTS)
   );
+  const [workPrograms, setWorkPrograms] = useState<WorkProgramItem[]>(() =>
+    loadPersistedState<WorkProgramItem[]>('programs', INITIAL_WORK_PROGRAMS)
+  );
   const [templates, setTemplates] = useState<LetterTemplate[]>(() =>
     loadPersistedState<LetterTemplate[]>('templates', INITIAL_LETTER_TEMPLATES)
   );
@@ -163,14 +172,43 @@ export default function App() {
     loadPersistedState<ActivityLog[]>('activity_logs', INITIAL_ACTIVITY_LOGS)
   );
 
-  // Navigation & Auth Session State (persisted across reloads)
+  // Navigation & Auth Session State (persisted across reloads + /login URL support)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() =>
     loadPersistedState<UserProfile | null>('current_user', null)
   );
-  const [viewMode, setViewMode] = useState<'public' | 'cms'>(() =>
-    loadPersistedState<'public' | 'cms'>('view_mode', 'public')
-  );
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'public' | 'cms'>(() => {
+    const savedMode = loadPersistedState<'public' | 'cms'>('view_mode', 'public');
+    if (
+      typeof window !== 'undefined' &&
+      isLoginRoutePath(
+        window.location.pathname,
+        window.location.hash,
+        window.location.search
+      )
+    ) {
+      const savedUser = loadPersistedState<UserProfile | null>(
+        'current_user',
+        null
+      );
+      if (savedUser) return 'cms';
+    }
+    return savedMode;
+  });
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const savedUser = loadPersistedState<UserProfile | null>(
+      'current_user',
+      null
+    );
+    return (
+      !savedUser &&
+      isLoginRoutePath(
+        window.location.pathname,
+        window.location.hash,
+        window.location.search
+      )
+    );
+  });
 
   // Mirror state changes to localStorage immediately so page reloads never lose data
   useEffect(() => {
@@ -194,8 +232,40 @@ export default function App() {
   }, [comments]);
 
   useEffect(() => {
+    savePersistedState('programs', workPrograms);
+  }, [workPrograms]);
+
+  useEffect(() => {
     savePersistedState('templates', templates);
   }, [templates]);
+
+  // Listen to browser navigation (popstate / hashchange) for /login route
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const syncRoute = () => {
+      if (
+        isLoginRoutePath(
+          window.location.pathname,
+          window.location.hash,
+          window.location.search
+        )
+      ) {
+        if (currentUser) {
+          setViewMode('cms');
+          setIsLoginModalOpen(false);
+        } else {
+          setIsLoginModalOpen(true);
+        }
+      }
+    };
+    syncRoute();
+    window.addEventListener('popstate', syncRoute);
+    window.addEventListener('hashchange', syncRoute);
+    return () => {
+      window.removeEventListener('popstate', syncRoute);
+      window.removeEventListener('hashchange', syncRoute);
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     savePersistedState('letter_sequence', letterSequence);
@@ -304,8 +374,110 @@ export default function App() {
                 INITIAL_SITE_CONFIG
               );
               setSiteConfig(normalized);
-              // Auto-migrate legacy default name in Firestore if encountered
-              if (d.config.siteName === 'Wana Lestari Nusantara') {
+
+              // Auto-repair previously truncated 350,000-char uploaded YGI logo in Firestore
+              if (
+                typeof normalized.logoUrl === 'string' &&
+                normalized.logoUrl.length === 350000 &&
+                normalized.logoUrl.startsWith('data:image/png;base64,') &&
+                typeof document !== 'undefined'
+              ) {
+                const img = new Image();
+                img.onload = () => {
+                  try {
+                    const c = document.createElement('canvas');
+                    c.width = 643;
+                    c.height = 637;
+                    const ctx = c.getContext('2d');
+                    if (!ctx) return;
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, 643, 637);
+                    ctx.drawImage(img, 0, 0);
+
+                    const cx = 321.5;
+                    const cy = 326;
+                    const green = '#0A6639';
+
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(542, 375, 101, 262);
+                    ctx.fillRect(0, 412, 643, 225);
+
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(0, 410, 643, 227);
+                    ctx.clip();
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 219.5, 0, Math.PI * 2);
+                    ctx.strokeStyle = green;
+                    ctx.lineWidth = 17;
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.moveTo(334, 410);
+                    ctx.quadraticCurveTo(330, 436, 312, 456);
+                    ctx.quadraticCurveTo(338, 446, 358, 424);
+                    ctx.quadraticCurveTo(418, 444, 474, 410);
+                    ctx.closePath();
+                    ctx.fillStyle = green;
+                    ctx.fill();
+
+                    ctx.beginPath();
+                    ctx.moveTo(362, 410);
+                    ctx.quadraticCurveTo(340, 426, 316, 450);
+                    ctx.strokeStyle = '#FFFFFF';
+                    ctx.lineWidth = 7;
+                    ctx.lineCap = 'round';
+                    ctx.stroke();
+                    ctx.restore();
+
+                    const drawLetter = (ch: string, angleDeg: number) => {
+                      const rad = (angleDeg * Math.PI) / 180;
+                      const rText = 263;
+                      const x = cx + rText * Math.cos(rad);
+                      const y = cy + rText * Math.sin(rad);
+                      ctx.save();
+                      ctx.translate(x, y);
+                      ctx.rotate(rad + Math.PI / 2);
+                      ctx.scale(1.15, 1);
+                      ctx.fillStyle = green;
+                      ctx.font =
+                        '900 54px "Arial Black", "Plus Jakarta Sans", sans-serif';
+                      ctx.textAlign = 'center';
+                      ctx.textBaseline = 'middle';
+                      ctx.fillText(ch, 0, 0);
+                      ctx.restore();
+                    };
+
+                    drawLetter('Y', 153.5);
+                    drawLetter('A', 140.5);
+                    drawLetter('Y', 127.5);
+                    drawLetter('E', 14.5);
+                    drawLetter('S', 26.5);
+                    drawLetter('I', 36.5);
+                    drawLetter('A', 47.5);
+
+                    const out = document.createElement('canvas');
+                    out.width = 360;
+                    out.height = 357;
+                    const octx = out.getContext('2d');
+                    if (!octx) return;
+                    octx.drawImage(c, 0, 0, 360, 357);
+                    const repairedDataUrl = out.toDataURL('image/png');
+                    const healedConfig: SiteConfig = {
+                      ...normalized,
+                      logoUrl: repairedDataUrl,
+                    };
+                    setSiteConfig(healedConfig);
+                    persistSectionToFirestore('site_config', {
+                      config: healedConfig,
+                    });
+                  } catch {
+                    // Ignore canvas errors
+                  }
+                };
+                img.src = normalized.logoUrl;
+              } else if (d.config.siteName === 'Wana Lestari Nusantara') {
+                // Auto-migrate legacy default name in Firestore if encountered
                 persistSectionToFirestore('site_config', {
                   config: normalized,
                 });
@@ -420,6 +592,30 @@ export default function App() {
             error,
             OperationType.GET,
             'ygi_cms_state/comments'
+          );
+        }
+      )
+    );
+
+    // Section 5B: programs (Program Kerja Homepage)
+    unsubs.push(
+      onSnapshot(
+        doc(db, 'ygi_cms_state', 'programs'),
+        (snap) => {
+          if (snap.exists()) {
+            const d = snap.data();
+            if (Array.isArray(d.items) && d.items.length > 0) {
+              setWorkPrograms(d.items as WorkProgramItem[]);
+            }
+          } else {
+            persistSectionToFirestore('programs', { items: workPrograms });
+          }
+        },
+        (error) => {
+          handleFirestoreError(
+            error,
+            OperationType.GET,
+            'ygi_cms_state/programs'
           );
         }
       )
@@ -657,7 +853,32 @@ export default function App() {
       setViewMode('cms');
       savePersistedState('view_mode', 'cms');
     } else {
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        try {
+          window.history.pushState({}, '', '/login');
+        } catch {
+          // Ignore pushState restrictions in sandboxed environments
+        }
+      }
       setIsLoginModalOpen(true);
+    }
+  };
+
+  const handleCloseLoginModal = () => {
+    setIsLoginModalOpen(false);
+    if (
+      typeof window !== 'undefined' &&
+      isLoginRoutePath(
+        window.location.pathname,
+        window.location.hash,
+        window.location.search
+      )
+    ) {
+      try {
+        window.history.pushState({}, '', '/');
+      } catch {
+        // Ignore pushState restrictions
+      }
     }
   };
 
@@ -688,6 +909,20 @@ export default function App() {
     savePersistedState('current_user', null);
     setViewMode('public');
     savePersistedState('view_mode', 'public');
+    if (
+      typeof window !== 'undefined' &&
+      isLoginRoutePath(
+        window.location.pathname,
+        window.location.hash,
+        window.location.search
+      )
+    ) {
+      try {
+        window.history.pushState({}, '', '/');
+      } catch {
+        // Ignore
+      }
+    }
   };
 
   // Audit Log Helper
@@ -868,6 +1103,93 @@ export default function App() {
     setContents(nextContents);
     savePersistedState('contents', nextContents);
     persistSectionToFirestore('contents', { items: nextContents });
+  };
+
+  // Work Program Handlers (Level 0 & Level 1)
+  const handleCreateWorkProgram = (data: {
+    code: string;
+    title: string;
+    description: string;
+  }) => {
+    if (!currentUser || !canManageWorkPrograms(currentUser.level)) return;
+    const check = validateAndFormatWorkProgram(
+      data.code,
+      data.title,
+      data.description
+    );
+    if (!check.valid) return;
+    const nowIso = new Date().toISOString();
+    const newProg: WorkProgramItem = {
+      id: `prog_${Date.now()}`,
+      code: check.cleanedCode,
+      title: check.cleanedTitle,
+      description: check.cleanedDescription,
+      updatedBy: currentUser.uid,
+      updatedAt: nowIso,
+    };
+    const nextPrograms = [...workPrograms, newProg];
+    setWorkPrograms(nextPrograms);
+    savePersistedState('programs', nextPrograms);
+    persistSectionToFirestore('programs', { items: nextPrograms });
+
+    appendActivityLog(
+      'WORK_PROGRAM_UPDATED',
+      newProg.id,
+      `Level ${currentUser.level} (${currentUser.displayName}) menambahkan Program Kerja Homepage: "${newProg.title}".`
+    );
+  };
+
+  const handleUpdateWorkProgram = (
+    id: string,
+    data: { code: string; title: string; description: string }
+  ) => {
+    if (!currentUser || !canManageWorkPrograms(currentUser.level)) return;
+    const check = validateAndFormatWorkProgram(
+      data.code,
+      data.title,
+      data.description
+    );
+    if (!check.valid) return;
+    const nowIso = new Date().toISOString();
+    const nextPrograms = workPrograms.map((p) =>
+      p.id === id
+        ? {
+            ...p,
+            code: check.cleanedCode,
+            title: check.cleanedTitle,
+            description: check.cleanedDescription,
+            updatedBy: currentUser.uid,
+            updatedAt: nowIso,
+          }
+        : p
+    );
+    setWorkPrograms(nextPrograms);
+    savePersistedState('programs', nextPrograms);
+    persistSectionToFirestore('programs', { items: nextPrograms });
+
+    appendActivityLog(
+      'WORK_PROGRAM_UPDATED',
+      id,
+      `Level ${currentUser.level} (${currentUser.displayName}) memperbarui Program Kerja Homepage menjadi "${check.cleanedTitle}".`
+    );
+  };
+
+  const handleDeleteWorkProgram = (id: string) => {
+    if (!currentUser || !canManageWorkPrograms(currentUser.level)) return;
+    if (workPrograms.length <= 1) return;
+    const target = workPrograms.find((p) => p.id === id);
+    const nextPrograms = workPrograms.filter((p) => p.id !== id);
+    setWorkPrograms(nextPrograms);
+    savePersistedState('programs', nextPrograms);
+    persistSectionToFirestore('programs', { items: nextPrograms });
+
+    if (target) {
+      appendActivityLog(
+        'WORK_PROGRAM_UPDATED',
+        id,
+        `Level ${currentUser.level} (${currentUser.displayName}) menghapus Program Kerja "${target.title}" dari Homepage.`
+      );
+    }
   };
 
   const handleSaveTemplate = (data: {
@@ -1612,6 +1934,7 @@ export default function App() {
           siteConfig={siteConfig}
           categories={categories}
           contents={contents}
+          workPrograms={workPrograms}
           templates={templates}
           letterSequence={letterSequence}
           letters={letters}
@@ -1625,6 +1948,20 @@ export default function App() {
           onBackToPublic={() => {
             setViewMode('public');
             savePersistedState('view_mode', 'public');
+            if (
+              typeof window !== 'undefined' &&
+              isLoginRoutePath(
+                window.location.pathname,
+                window.location.hash,
+                window.location.search
+              )
+            ) {
+              try {
+                window.history.pushState({}, '', '/');
+              } catch {
+                // Ignore
+              }
+            }
           }}
           onLogout={handleLogout}
           onCreateCategory={handleCreateCategory}
@@ -1632,6 +1969,9 @@ export default function App() {
           onCreateContent={handleCreateContent}
           onUpdateContentStatus={handleUpdateContentStatus}
           onDeleteContent={handleDeleteContent}
+          onCreateWorkProgram={handleCreateWorkProgram}
+          onUpdateWorkProgram={handleUpdateWorkProgram}
+          onDeleteWorkProgram={handleDeleteWorkProgram}
           onSaveTemplate={handleSaveTemplate}
           onCreateLetter={handleCreateLetter}
           onUpdateLetterStatus={handleUpdateLetterStatus}
@@ -1653,6 +1993,7 @@ export default function App() {
           categories={categories}
           contents={contents}
           comments={comments}
+          workPrograms={workPrograms}
           currentUser={currentUser}
           onOpenCms={handleOpenCmsClick}
           onAddComment={handleAddComment}
@@ -1663,7 +2004,8 @@ export default function App() {
       {isLoginModalOpen && (
         <CmsLoginModal
           users={users}
-          onClose={() => setIsLoginModalOpen(false)}
+          allowedDomains={siteConfig.allowedDomains}
+          onClose={handleCloseLoginModal}
           onLoginSuccess={(user) => {
             setCurrentUser(user);
             savePersistedState('current_user', user);
