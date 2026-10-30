@@ -30,9 +30,7 @@ export function CmsLoginModal({
   const [oauthLoading, setOauthLoading] = useState<boolean>(false);
   const [showDomainGoogleFallback, setShowDomainGoogleFallback] =
     useState<boolean>(false);
-  const [googleEmailInput, setGoogleEmailInput] = useState<string>(
-    users[0]?.email || ''
-  );
+  const [googleEmailInput, setGoogleEmailInput] = useState<string>('');
 
   const currentHost =
     typeof window !== 'undefined' ? window.location.hostname : 'localhost';
@@ -259,9 +257,10 @@ export function CmsLoginModal({
                 </p>
                 <input
                   type="email"
+                  aria-label="Email Google Terdaftar"
                   value={googleEmailInput}
                   onChange={(e) => setGoogleEmailInput(e.target.value)}
-                  placeholder="Email Google terdaftar (mis. isaranamachilikhanputera@gmail.com)"
+                  placeholder="Masukkan email Google yang terdaftar..."
                   className="w-full px-3 py-2 text-xs bg-white border border-[#CED9D1] rounded-md text-[#0F2417]"
                 />
                 <button
