@@ -1,0 +1,8 @@
+{
+  "name": "Remix Yayasan Gunung Parama Indonesia — Portal \u0026 CMS Organisasi",
+  "description": "Portal publik bertema hijau hutan dan sistem manajemen konten (CMS) terpadu dengan RBAC multi-level, generator Surat Organisasi otomatis, pelaporan Surat Tugas, komentar real-time, dan analitik berbasis Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

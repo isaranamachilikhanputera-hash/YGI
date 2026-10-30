@@ -1,0 +1,640 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net: Default-deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // Global Hardened Primitives
+    // =========================================================================
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerifiedUser() && (
+        request.auth.token.email == 'isaranamachilikhanputera@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // =========================================================================
+    // Validation Blueprints (Anti-Update-Gap)
+    // =========================================================================
+    function isValidSiteConfig(data) {
+      return data.keys().hasAll([
+          'siteName', 'tagline', 'heroTitle', 'heroDescription',
+          'contactPersonName', 'contactPersonPhone', 'contactPersonEmail',
+          'officeAddress', 'footerText', 'updatedBy', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'siteName', 'tagline', 'heroTitle', 'heroDescription',
+          'contactPersonName', 'contactPersonPhone', 'contactPersonEmail',
+          'officeAddress', 'footerText', 'updatedBy', 'updatedAt'
+        ]) &&
+        data.siteName is string && data.siteName.size() >= 2 && data.siteName.size() <= 100 &&
+        data.tagline is string && data.tagline.size() >= 2 && data.tagline.size() <= 200 &&
+        data.heroTitle is string && data.heroTitle.size() >= 5 && data.heroTitle.size() <= 200 &&
+        data.heroDescription is string && data.heroDescription.size() >= 10 && data.heroDescription.size() <= 500 &&
+        data.contactPersonName is string && data.contactPersonName.size() >= 2 && data.contactPersonName.size() <= 100 &&
+        data.contactPersonPhone is string && data.contactPersonPhone.size() >= 5 && data.contactPersonPhone.size() <= 40 &&
+        data.contactPersonEmail is string && data.contactPersonEmail.size() >= 5 && data.contactPersonEmail.size() <= 120 &&
+        data.officeAddress is string && data.officeAddress.size() >= 5 && data.officeAddress.size() <= 250 &&
+        data.footerText is string && data.footerText.size() >= 5 && data.footerText.size() <= 250 &&
+        isValidId(data.updatedBy) && data.updatedBy == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPublicProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'displayName', 'roleName', 'level', 'department',
+          'isVerified', 'authProvider', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'uid', 'displayName', 'roleName', 'level', 'department',
+          'isVerified', 'authProvider', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.uid) &&
+        data.displayName is string && data.displayName.size() >= 2 && data.displayName.size() <= 100 &&
+        data.roleName is string && data.roleName.size() <= 20 &&
+        data.roleName in ['superadmin', 'admin', 'editor', 'contributor'] &&
+        data.level is int && data.level >= 0 && data.level <= 2 &&
+        data.department is string && data.department.size() >= 2 && data.department.size() <= 100 &&
+        data.isVerified is bool &&
+        data.authProvider is string && data.authProvider.size() <= 30 &&
+        data.authProvider in ['google_oauth', 'superadmin_key', 'verified_account'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'phone', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'phone', 'updatedAt']) &&
+        isValidId(data.uid) &&
+        data.email is string && data.email.size() >= 5 && data.email.size() <= 150 &&
+        data.phone is string && data.phone.size() >= 3 && data.phone.size() <= 40 &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'slug', 'description', 'createdBy', 'createdAt']) &&
+        data.keys().hasOnly(['name', 'slug', 'description', 'createdBy', 'createdAt']) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 60 &&
+        data.slug is string && data.slug.size() >= 2 && data.slug.size() <= 60 && data.slug.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.description is string && data.description.size() >= 2 && data.description.size() <= 200 &&
+        isValidId(data.createdBy) && data.createdBy == request.auth.uid &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidContentArticle(data) {
+      return data.keys().hasAll([
+          'title', 'summary', 'body', 'categoryId', 'categoryName', 'visualTheme',
+          'authorId', 'authorName', 'authorLevel', 'status', 'approvedBy',
+          'readTimeMinutes', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'title', 'summary', 'body', 'categoryId', 'categoryName', 'visualTheme',
+          'authorId', 'authorName', 'authorLevel', 'status', 'approvedBy',
+          'readTimeMinutes', 'createdAt', 'updatedAt'
+        ]) &&
+        data.title is string && data.title.size() >= 5 && data.title.size() <= 180 &&
+        data.summary is string && data.summary.size() >= 10 && data.summary.size() <= 400 &&
+        data.body is string && data.body.size() >= 20 && data.body.size() <= 10000 &&
+        data.categoryId is string && data.categoryId.size() >= 2 && data.categoryId.size() <= 60 && data.categoryId.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.categoryName is string && data.categoryName.size() >= 2 && data.categoryName.size() <= 60 &&
+        data.visualTheme is string && data.visualTheme.size() <= 20 &&
+        data.visualTheme in ['canopy', 'reforestation', 'watershed', 'agroforestry'] &&
+        isValidId(data.authorId) &&
+        data.authorName is string && data.authorName.size() >= 2 && data.authorName.size() <= 100 &&
+        data.authorLevel is int && data.authorLevel >= 0 && data.authorLevel <= 2 &&
+        data.status is string && data.status.size() <= 20 &&
+        data.status in ['pending_approval', 'published', 'rejected'] &&
+        data.approvedBy is string && data.approvedBy.size() >= 1 && data.approvedBy.size() <= 128 &&
+        data.readTimeMinutes is int && data.readTimeMinutes >= 1 && data.readTimeMinutes <= 120 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['articleId', 'authorId', 'authorName', 'authorRole', 'message', 'createdAt']) &&
+        data.keys().hasOnly(['articleId', 'authorId', 'authorName', 'authorRole', 'message', 'createdAt']) &&
+        isValidId(data.articleId) &&
+        isValidId(data.authorId) && data.authorId == request.auth.uid &&
+        data.authorName is string && data.authorName.size() >= 2 && data.authorName.size() <= 80 &&
+        data.authorRole is string && data.authorRole.size() >= 2 && data.authorRole.size() <= 40 &&
+        data.message is string && data.message.size() >= 2 && data.message.size() <= 1000 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidLetterTemplate(data) {
+      return data.keys().hasAll(['name', 'category', 'codePrefix', 'bodyTemplate', 'createdBy', 'createdAt']) &&
+        data.keys().hasOnly(['name', 'category', 'codePrefix', 'bodyTemplate', 'createdBy', 'createdAt']) &&
+        data.name is string && data.name.size() >= 3 && data.name.size() <= 100 &&
+        data.category is string && data.category.size() <= 30 &&
+        data.category in ['Surat Tugas', 'Surat Keputusan', 'Surat Undangan', 'Surat Edaran'] &&
+        data.codePrefix is string && data.codePrefix.size() >= 2 && data.codePrefix.size() <= 10 &&
+        data.bodyTemplate is string && data.bodyTemplate.size() >= 20 && data.bodyTemplate.size() <= 8000 &&
+        isValidId(data.createdBy) && data.createdBy == request.auth.uid &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidLetterCounter(data) {
+      return data.keys().hasAll(['year', 'lastSequence', 'updatedBy', 'updatedAt']) &&
+        data.keys().hasOnly(['year', 'lastSequence', 'updatedBy', 'updatedAt']) &&
+        data.year is int && data.year >= 2020 && data.year <= 2100 &&
+        data.lastSequence is int && data.lastSequence >= 0 && data.lastSequence <= 1000000 &&
+        isValidId(data.updatedBy) && data.updatedBy == request.auth.uid &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidOrganizationLetter(data) {
+      return data.keys().hasAll([
+          'letterNumber', 'sequenceNumber', 'category', 'subject', 'recipientName',
+          'assigneeId', 'supervisorId', 'supervisorName', 'location', 'renderedBody',
+          'monthIssued', 'yearIssued', 'status', 'taskCompletionStatus',
+          'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'letterNumber', 'sequenceNumber', 'category', 'subject', 'recipientName',
+          'assigneeId', 'supervisorId', 'supervisorName', 'location', 'renderedBody',
+          'monthIssued', 'yearIssued', 'status', 'taskCompletionStatus',
+          'createdBy', 'createdAt', 'updatedAt'
+        ]) &&
+        data.letterNumber is string && data.letterNumber.size() >= 5 && data.letterNumber.size() <= 60 &&
+        data.sequenceNumber is int && data.sequenceNumber >= 1 && data.sequenceNumber <= 1000000 &&
+        data.category is string && data.category.size() <= 30 &&
+        data.category in ['Surat Tugas', 'Surat Keputusan', 'Surat Undangan', 'Surat Edaran'] &&
+        data.subject is string && data.subject.size() >= 5 && data.subject.size() <= 180 &&
+        data.recipientName is string && data.recipientName.size() >= 2 && data.recipientName.size() <= 100 &&
+        isValidId(data.assigneeId) &&
+        isValidId(data.supervisorId) &&
+        data.supervisorName is string && data.supervisorName.size() >= 2 && data.supervisorName.size() <= 100 &&
+        data.location is string && data.location.size() >= 2 && data.location.size() <= 120 &&
+        data.renderedBody is string && data.renderedBody.size() >= 20 && data.renderedBody.size() <= 10000 &&
+        data.monthIssued is int && data.monthIssued >= 1 && data.monthIssued <= 12 &&
+        data.yearIssued is int && data.yearIssued >= 2020 && data.yearIssued <= 2100 &&
+        data.status is string && data.status.size() <= 20 &&
+        data.status in ['pending_approval', 'approved', 'rejected'] &&
+        data.taskCompletionStatus is string && data.taskCompletionStatus.size() <= 20 &&
+        data.taskCompletionStatus in ['not_applicable', 'assigned', 'in_progress', 'completed'] &&
+        isValidId(data.createdBy) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidTaskReport(data) {
+      return data.keys().hasAll([
+          'letterId', 'letterNumber', 'taskTitle', 'submittedBy', 'submittedByName',
+          'summaryResult', 'completionRate', 'photoEvidenceName', 'photoEvidenceData',
+          'supportingDocName', 'supportingDocSummary', 'verificationStatus',
+          'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'letterId', 'letterNumber', 'taskTitle', 'submittedBy', 'submittedByName',
+          'summaryResult', 'completionRate', 'photoEvidenceName', 'photoEvidenceData',
+          'supportingDocName', 'supportingDocSummary', 'verificationStatus',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.letterId) &&
+        data.letterNumber is string && data.letterNumber.size() >= 5 && data.letterNumber.size() <= 60 &&
+        data.taskTitle is string && data.taskTitle.size() >= 5 && data.taskTitle.size() <= 180 &&
+        isValidId(data.submittedBy) &&
+        data.submittedByName is string && data.submittedByName.size() >= 2 && data.submittedByName.size() <= 100 &&
+        data.summaryResult is string && data.summaryResult.size() >= 15 && data.summaryResult.size() <= 5000 &&
+        data.completionRate is int && data.completionRate >= 0 && data.completionRate <= 100 &&
+        data.photoEvidenceName is string && data.photoEvidenceName.size() >= 3 && data.photoEvidenceName.size() <= 150 &&
+        data.photoEvidenceData is string && data.photoEvidenceData.size() >= 5 && data.photoEvidenceData.size() <= 150000 &&
+        data.supportingDocName is string && data.supportingDocName.size() >= 3 && data.supportingDocName.size() <= 150 &&
+        data.supportingDocSummary is string && data.supportingDocSummary.size() >= 5 && data.supportingDocSummary.size() <= 1000 &&
+        data.verificationStatus is string && data.verificationStatus.size() <= 20 &&
+        data.verificationStatus in ['submitted', 'verified', 'revision_needed'] &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidNotificationItem(data) {
+      return data.keys().hasAll([
+          'recipientId', 'senderId', 'title', 'message', 'category',
+          'referenceId', 'isRead', 'createdAt', 'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'recipientId', 'senderId', 'title', 'message', 'category',
+          'referenceId', 'isRead', 'createdAt', 'updatedAt'
+        ]) &&
+        isValidId(data.recipientId) &&
+        isValidId(data.senderId) &&
+        data.title is string && data.title.size() >= 3 && data.title.size() <= 140 &&
+        data.message is string && data.message.size() >= 5 && data.message.size() <= 600 &&
+        data.category is string && data.category.size() <= 30 &&
+        data.category in ['letter_approval', 'surat_tugas_assignee', 'surat_tugas_supervisor', 'content_approval', 'task_report'] &&
+        isValidId(data.referenceId) &&
+        data.isRead is bool &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidActivityLog(data) {
+      return data.keys().hasAll([
+          'actorId', 'actorName', 'actorLevel', 'actionType', 'targetId', 'details', 'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'actorId', 'actorName', 'actorLevel', 'actionType', 'targetId', 'details', 'createdAt'
+        ]) &&
+        isValidId(data.actorId) && data.actorId == request.auth.uid &&
+        data.actorName is string && data.actorName.size() >= 2 && data.actorName.size() <= 100 &&
+        data.actorLevel is int && data.actorLevel >= 0 && data.actorLevel <= 2 &&
+        data.actionType is string && data.actionType.size() <= 40 &&
+        data.actionType in [
+          'SURAT_TUGAS_CREATED', 'LETTER_STATUS_CHANGED', 'CONTENT_CREATED',
+          'CONTENT_APPROVED', 'TASK_REPORT_SUBMITTED', 'USER_PRIVILEGE_UPDATED',
+          'SITE_CONFIG_UPDATED'
+        ] &&
+        isValidId(data.targetId) &&
+        data.details is string && data.details.size() >= 5 && data.details.size() <= 600 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidYgiCmsState(data) {
+      return data.keys().hasAll(['section', 'items', 'config', 'sequence', 'updatedBy', 'updatedAt']) &&
+        data.keys().hasOnly(['section', 'items', 'config', 'sequence', 'updatedBy', 'updatedAt']) &&
+        data.section is string && data.section.size() >= 3 && data.section.size() <= 40 &&
+        data.section in [
+          'site_config', 'users', 'categories', 'contents', 'comments',
+          'templates', 'letters', 'reports', 'notifications', 'activity_logs'
+        ] &&
+        data.items is list && data.items.size() <= 500 &&
+        (data.items.size() == 0 || data.items[0] is map) &&
+        data.config is map && data.config.keys().size() <= 25 &&
+        data.sequence is int && data.sequence >= 0 && data.sequence <= 1000000 &&
+        isValidId(data.updatedBy) &&
+        data.updatedAt is timestamp;
+    }
+
+    // =========================================================================
+    // Collection Rules
+    // =========================================================================
+
+    // Admins lookup collection
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && (isOwner(adminId) || isAdmin());
+      allow list: if false;
+      allow create, update, delete: if isValidId(adminId) && isAdmin();
+    }
+
+    // Connection test probe path
+    match /test/{docId} {
+      allow get: if isValidId(docId);
+      allow list, create, update, delete: if false;
+    }
+
+    // 1. Site Configuration
+    match /site_config/{configId} {
+      allow get: if isValidId(configId);
+      allow list: if false;
+      allow create: if isVerifiedUser() && isValidId(configId) &&
+        isValidSiteConfig(incoming()) &&
+        incoming().updatedAt == request.time &&
+        isAdmin();
+      allow update: if isVerifiedUser() && isValidId(configId) &&
+        isValidSiteConfig(incoming()) &&
+        incoming().updatedAt == request.time &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'siteName', 'tagline', 'heroTitle', 'heroDescription',
+          'contactPersonName', 'contactPersonPhone', 'contactPersonEmail',
+          'officeAddress', 'footerText', 'updatedBy', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+
+    // 2. User Public Profiles & Isolated Private PII
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(userId) &&
+        isValidUserPublicProfile(incoming()) &&
+        incoming().uid == userId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        (
+          // Self-registration: strictly restricted to Level 2 Contributor
+          (isOwner(userId) && incoming().level == 2 && incoming().roleName == 'contributor') ||
+          isAdmin()
+        );
+      allow update: if isVerifiedUser() && isValidId(userId) &&
+        isValidUserPublicProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          // Action 1: Owner updates displayName or department only (cannot escalate level or roleName)
+          (isOwner(userId) &&
+            incoming().level == existing().level &&
+            incoming().roleName == existing().roleName &&
+            incoming().isVerified == existing().isVerified &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'department', 'updatedAt'])) ||
+          // Action 2: Admin updates RBAC level, roleName, department, or verification
+          (isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'displayName', 'roleName', 'level', 'department', 'isVerified', 'updatedAt'
+            ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(userId) && isAdmin();
+
+      // Isolated Private PII Subcollection
+      match /private/{docId} {
+        allow get: if isVerifiedUser() && isValidId(userId) && isValidId(docId) &&
+          exists(/databases/$(database)/documents/users/$(userId)) &&
+          (isOwner(userId) || isAdmin());
+        allow list: if false;
+        allow create: if isVerifiedUser() && isValidId(userId) && isValidId(docId) &&
+          isValidUserPrivateInfo(incoming()) &&
+          incoming().uid == userId &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/users/$(userId)) &&
+          (isOwner(userId) || isAdmin());
+        allow update: if isVerifiedUser() && isValidId(userId) && isValidId(docId) &&
+          isValidUserPrivateInfo(incoming()) &&
+          incoming().uid == existing().uid &&
+          incoming().updatedAt == request.time &&
+          exists(/databases/$(database)/documents/users/$(userId)) &&
+          (isOwner(userId) || isAdmin()) &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['email', 'phone', 'updatedAt']);
+        allow delete: if isVerifiedUser() && isValidId(userId) && isValidId(docId) && isAdmin();
+      }
+    }
+
+    // 3. Categories
+    match /categories/{categoryId} {
+      allow get: if isValidId(categoryId);
+      allow list: if resource.data.name is string;
+      allow create: if isVerifiedUser() && isValidId(categoryId) &&
+        isValidCategory(incoming()) &&
+        incoming().createdAt == request.time &&
+        isAdmin();
+      allow update: if isVerifiedUser() && isValidId(categoryId) &&
+        isValidCategory(incoming()) &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        isAdmin() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'slug', 'description']);
+      allow delete: if isVerifiedUser() && isValidId(categoryId) && isAdmin();
+    }
+
+    // 4. Content Articles & Real-time Comments Subcollection
+    match /contents/{contentId} {
+      allow get: if isValidId(contentId) && (
+        resource.data.status == 'published' ||
+        (isVerifiedUser() && (resource.data.authorId == request.auth.uid || isAdmin()))
+      );
+      allow list: if resource.data.status == 'published' ||
+        (isVerifiedUser() && (resource.data.authorId == request.auth.uid || isAdmin()));
+      allow create: if isVerifiedUser() && isValidId(contentId) &&
+        isValidContentArticle(incoming()) &&
+        incoming().authorId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/categories/$(incoming().categoryId)) &&
+        (
+          // Level 2 Contributor can ONLY create in pending_approval state
+          (incoming().status == 'pending_approval' && incoming().approvedBy == 'pending') ||
+          // Admin can publish directly
+          isAdmin()
+        );
+      allow update: if isVerifiedUser() && isValidId(contentId) &&
+        isValidContentArticle(incoming()) &&
+        incoming().authorId == existing().authorId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          // Action 1: Author edits content while still pending_approval
+          (existing().authorId == request.auth.uid &&
+            existing().status == 'pending_approval' &&
+            incoming().status == 'pending_approval' &&
+            incoming().approvedBy == existing().approvedBy &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'summary', 'body', 'categoryId', 'categoryName',
+              'visualTheme', 'readTimeMinutes', 'updatedAt'
+            ])) ||
+          // Action 2: Admin approves/rejects or edits content
+          (isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'title', 'summary', 'body', 'categoryId', 'categoryName',
+              'visualTheme', 'status', 'approvedBy', 'readTimeMinutes', 'updatedAt'
+            ]))
+        );
+      allow delete: if isVerifiedUser() && isValidId(contentId) && isAdmin();
+
+      // Subcollection: Real-time Comments (Master Gate enforced)
+      match /comments/{commentId} {
+        allow get: if isValidId(contentId) && isValidId(commentId) &&
+          get(/databases/$(database)/documents/contents/$(contentId)).data.status == 'published';
+        allow list: if resource.data.articleId == contentId;
+        allow create: if isVerifiedUser() && isValidId(contentId) && isValidId(commentId) &&
+          isValidComment(incoming()) &&
+          incoming().articleId == contentId &&
+          incoming().createdAt == request.time &&
+          get(/databases/$(database)/documents/contents/$(contentId)).data.status == 'published';
+        allow update: if false;
+        allow delete: if isVerifiedUser() && isValidId(contentId) && isValidId(commentId) &&
+          exists(/databases/$(database)/documents/contents/$(contentId)) &&
+          (resource.data.authorId == request.auth.uid || isAdmin());
+      }
+    }
+
+    // 5. Letter Templates
+    match /letter_templates/{templateId} {
+      allow get: if isVerifiedUser() && isValidId(templateId);
+      allow list: if isVerifiedUser() && (resource.data.createdBy == request.auth.uid || isAdmin());
+      allow create: if isVerifiedUser() && isValidId(templateId) &&
+        isValidLetterTemplate(incoming()) &&
+        incoming().createdAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(templateId) &&
+        isValidLetterTemplate(incoming()) &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().createdAt == existing().createdAt &&
+        (existing().createdBy == request.auth.uid || isAdmin()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'category', 'codePrefix', 'bodyTemplate']);
+      allow delete: if isVerifiedUser() && isValidId(templateId) && isAdmin();
+    }
+
+    // 6. Letter Sequential Counters
+    match /letter_counters/{counterId} {
+      allow get: if isVerifiedUser() && isValidId(counterId);
+      allow list: if false;
+      allow create: if isVerifiedUser() && isValidId(counterId) &&
+        isValidLetterCounter(incoming()) &&
+        incoming().lastSequence == 1 &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(counterId) &&
+        isValidLetterCounter(incoming()) &&
+        incoming().year == existing().year &&
+        incoming().lastSequence == existing().lastSequence + 1 &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['lastSequence', 'updatedBy', 'updatedAt']);
+      allow delete: if false;
+    }
+
+    // 7. Issued Organization Letters & Surat Tugas
+    match /letters/{letterId} {
+      allow get: if isVerifiedUser() && isValidId(letterId) && (
+        resource.data.createdBy == request.auth.uid ||
+        resource.data.assigneeId == request.auth.uid ||
+        resource.data.supervisorId == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.createdBy == request.auth.uid ||
+        resource.data.assigneeId == request.auth.uid ||
+        resource.data.supervisorId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isVerifiedUser() && isValidId(letterId) &&
+        isValidOrganizationLetter(incoming()) &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/users/$(incoming().assigneeId)) &&
+        exists(/databases/$(database)/documents/users/$(incoming().supervisorId));
+      allow update: if isVerifiedUser() && isValidId(letterId) &&
+        isValidOrganizationLetter(incoming()) &&
+        incoming().createdBy == existing().createdBy &&
+        incoming().letterNumber == existing().letterNumber &&
+        incoming().sequenceNumber == existing().sequenceNumber &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          // Terminal state lock for non-admins once rejected
+          (existing().status != 'rejected' &&
+            existing().assigneeId == request.auth.uid &&
+            incoming().status == existing().status &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['taskCompletionStatus', 'updatedAt'])) ||
+          // Admin approval / state management
+          (isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'taskCompletionStatus', 'updatedAt']))
+        );
+      allow delete: if isVerifiedUser() && isValidId(letterId) && isAdmin();
+    }
+
+    // 8. Task Execution Reports (Berdasarkan Surat Tugas)
+    match /task_reports/{reportId} {
+      allow get: if isVerifiedUser() && isValidId(reportId) && (
+        resource.data.submittedBy == request.auth.uid || isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.submittedBy == request.auth.uid || isAdmin()
+      );
+      allow create: if isVerifiedUser() && isValidId(reportId) &&
+        isValidTaskReport(incoming()) &&
+        incoming().submittedBy == request.auth.uid &&
+        incoming().verificationStatus == 'submitted' &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        exists(/databases/$(database)/documents/letters/$(incoming().letterId));
+      allow update: if isVerifiedUser() && isValidId(reportId) &&
+        isValidTaskReport(incoming()) &&
+        incoming().letterId == existing().letterId &&
+        incoming().submittedBy == existing().submittedBy &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          // Submitter can update report details only before it is verified (terminal state lock)
+          (existing().verificationStatus != 'verified' &&
+            existing().submittedBy == request.auth.uid &&
+            incoming().verificationStatus == existing().verificationStatus &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'summaryResult', 'completionRate', 'photoEvidenceName',
+              'photoEvidenceData', 'supportingDocName', 'supportingDocSummary', 'updatedAt'
+            ])) ||
+          // Admin verifies report
+          (isAdmin() &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['verificationStatus', 'completionRate', 'updatedAt']))
+        );
+      allow delete: if isVerifiedUser() && isValidId(reportId) && isAdmin();
+    }
+
+    // 9. Notifications
+    match /notifications/{notificationId} {
+      allow get: if isVerifiedUser() && isValidId(notificationId) && (
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.senderId == request.auth.uid ||
+        isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.recipientId == request.auth.uid ||
+        resource.data.senderId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isVerifiedUser() && isValidId(notificationId) &&
+        isValidNotificationItem(incoming()) &&
+        incoming().senderId == request.auth.uid &&
+        incoming().isRead == false &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser() && isValidId(notificationId) &&
+        isValidNotificationItem(incoming()) &&
+        incoming().recipientId == existing().recipientId &&
+        incoming().senderId == existing().senderId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (existing().recipientId == request.auth.uid || isAdmin()) &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['isRead', 'updatedAt']);
+      allow delete: if isVerifiedUser() && isValidId(notificationId) && isAdmin();
+    }
+
+    // 10. Activity Audit Logs (Immutable)
+    match /activity_logs/{logId} {
+      allow get: if isVerifiedUser() && isValidId(logId) && (
+        resource.data.actorId == request.auth.uid || isAdmin()
+      );
+      allow list: if isVerifiedUser() && (
+        resource.data.actorId == request.auth.uid || isAdmin()
+      );
+      allow create: if isVerifiedUser() && isValidId(logId) &&
+        isValidActivityLog(incoming()) &&
+        incoming().actorId == request.auth.uid &&
+        incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    // 11. YGI CMS State Persistence (Cloud Sync for RBAC & Portal State)
+    match /ygi_cms_state/{sectionId} {
+      allow get: if isValidId(sectionId);
+      allow list: if false;
+      allow create: if isValidId(sectionId) &&
+        isValidYgiCmsState(incoming()) &&
+        incoming().section == sectionId &&
+        incoming().updatedAt == request.time;
+      allow update: if isValidId(sectionId) &&
+        isValidYgiCmsState(incoming()) &&
+        incoming().section == existing().section &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'items', 'config', 'sequence', 'updatedBy', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+  }
+}

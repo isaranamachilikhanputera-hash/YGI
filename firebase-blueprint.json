@@ -1,0 +1,928 @@
+{
+  "entities": {
+    "SiteConfig": {
+      "title": "SiteConfig",
+      "description": "Configuration for the public forest-green website managed via CMS.",
+      "type": "object",
+      "properties": {
+        "siteName": {
+          "type": "string",
+          "description": "Organization website name",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "tagline": {
+          "type": "string",
+          "description": "Website subtitle or motto",
+          "minLength": 2,
+          "maxLength": 200
+        },
+        "heroTitle": {
+          "type": "string",
+          "description": "Main hero headline on the public portal",
+          "minLength": 5,
+          "maxLength": 200
+        },
+        "heroDescription": {
+          "type": "string",
+          "description": "Hero subheadline text",
+          "minLength": 10,
+          "maxLength": 500
+        },
+        "contactPersonName": {
+          "type": "string",
+          "description": "Contact Person (CP) full name",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "contactPersonPhone": {
+          "type": "string",
+          "description": "Contact Person phone/WhatsApp number",
+          "minLength": 5,
+          "maxLength": 40
+        },
+        "contactPersonEmail": {
+          "type": "string",
+          "format": "email",
+          "description": "Official contact email",
+          "minLength": 5,
+          "maxLength": 120
+        },
+        "officeAddress": {
+          "type": "string",
+          "description": "Organization physical address",
+          "minLength": 5,
+          "maxLength": 250
+        },
+        "footerText": {
+          "type": "string",
+          "description": "Footer copyright and institutional statement",
+          "minLength": 5,
+          "maxLength": 250
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "UID of admin who updated the config",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of update"
+        }
+      },
+      "required": [
+        "siteName",
+        "tagline",
+        "heroTitle",
+        "heroDescription",
+        "contactPersonName",
+        "contactPersonPhone",
+        "contactPersonEmail",
+        "officeAddress",
+        "footerText",
+        "updatedBy",
+        "updatedAt"
+      ]
+    },
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Publicly readable user role and privilege profile without sensitive PII.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "User ID matching document ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Public display name",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "roleName": {
+          "type": "string",
+          "description": "Role label: superadmin, admin, editor, or contributor",
+          "enum": ["superadmin", "admin", "editor", "contributor"]
+        },
+        "level": {
+          "type": "integer",
+          "description": "0 = Superadmin, 1 = Admin/Editor, 2 = Regular User/Contributor"
+        },
+        "department": {
+          "type": "string",
+          "description": "Organizational unit or division",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "isVerified": {
+          "type": "boolean",
+          "description": "Whether account is OAuth/Admin verified"
+        },
+        "authProvider": {
+          "type": "string",
+          "description": "Authentication method used",
+          "enum": ["google_oauth", "superadmin_key", "verified_account"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "roleName",
+        "level",
+        "department",
+        "isVerified",
+        "authProvider",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Strictly isolated PII document for a user.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner user UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Private email address",
+          "minLength": 5,
+          "maxLength": 150
+        },
+        "phone": {
+          "type": "string",
+          "description": "Private phone number",
+          "minLength": 3,
+          "maxLength": 40
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": ["uid", "email", "phone", "updatedAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Content category managed in the CMS.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Category display name",
+          "minLength": 2,
+          "maxLength": 60
+        },
+        "slug": {
+          "type": "string",
+          "description": "URL-friendly category slug",
+          "minLength": 2,
+          "maxLength": 60,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "description": {
+          "type": "string",
+          "description": "Brief description of the category",
+          "minLength": 2,
+          "maxLength": 200
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "UID of creator",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp"
+        }
+      },
+      "required": ["name", "slug", "description", "createdBy", "createdAt"]
+    },
+    "ContentArticle": {
+      "title": "ContentArticle",
+      "description": "CMS article or news post with multi-level approval workflow.",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Article headline",
+          "minLength": 5,
+          "maxLength": 180
+        },
+        "summary": {
+          "type": "string",
+          "description": "Short excerpt for cards",
+          "minLength": 10,
+          "maxLength": 400
+        },
+        "body": {
+          "type": "string",
+          "description": "Full article text",
+          "minLength": 20,
+          "maxLength": 10000
+        },
+        "categoryId": {
+          "type": "string",
+          "description": "Category slug or ID",
+          "minLength": 2,
+          "maxLength": 60,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "categoryName": {
+          "type": "string",
+          "description": "Category readable label",
+          "minLength": 2,
+          "maxLength": 60
+        },
+        "visualTheme": {
+          "type": "string",
+          "description": "Botanical SVG illustration theme identifier",
+          "enum": ["canopy", "reforestation", "watershed", "agroforestry"]
+        },
+        "authorId": {
+          "type": "string",
+          "description": "UID of content creator",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Display name of author",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "authorLevel": {
+          "type": "integer",
+          "description": "Level of creator (0, 1, or 2)"
+        },
+        "status": {
+          "type": "string",
+          "description": "Workflow state: pending_approval, published, or rejected",
+          "enum": ["pending_approval", "published", "rejected"]
+        },
+        "approvedBy": {
+          "type": "string",
+          "description": "UID of Level 0/1 approver or 'pending'",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "readTimeMinutes": {
+          "type": "integer",
+          "description": "Estimated reading time in minutes"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update server timestamp"
+        }
+      },
+      "required": [
+        "title",
+        "summary",
+        "body",
+        "categoryId",
+        "categoryName",
+        "visualTheme",
+        "authorId",
+        "authorName",
+        "authorLevel",
+        "status",
+        "approvedBy",
+        "readTimeMinutes",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Real-time reader comment on a published article.",
+      "type": "object",
+      "properties": {
+        "articleId": {
+          "type": "string",
+          "description": "Target article ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorId": {
+          "type": "string",
+          "description": "Commenter UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Commenter display name",
+          "minLength": 2,
+          "maxLength": 80
+        },
+        "authorRole": {
+          "type": "string",
+          "description": "Role badge text",
+          "minLength": 2,
+          "maxLength": 40
+        },
+        "message": {
+          "type": "string",
+          "description": "Comment content",
+          "minLength": 2,
+          "maxLength": 1000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Comment timestamp"
+        }
+      },
+      "required": [
+        "articleId",
+        "authorId",
+        "authorName",
+        "authorRole",
+        "message",
+        "createdAt"
+      ]
+    },
+    "LetterTemplate": {
+      "title": "LetterTemplate",
+      "description": "Customizable organizational letter template.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Template name",
+          "minLength": 3,
+          "maxLength": 100
+        },
+        "category": {
+          "type": "string",
+          "description": "Letter category",
+          "enum": ["Surat Tugas", "Surat Keputusan", "Surat Undangan", "Surat Edaran"]
+        },
+        "codePrefix": {
+          "type": "string",
+          "description": "Code prefix for numbering e.g. ST, SK, SU, SE",
+          "minLength": 2,
+          "maxLength": 10
+        },
+        "bodyTemplate": {
+          "type": "string",
+          "description": "Template text with {{PLACEHOLDERS}}",
+          "minLength": 20,
+          "maxLength": 8000
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "UID of creator",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        }
+      },
+      "required": [
+        "name",
+        "category",
+        "codePrefix",
+        "bodyTemplate",
+        "createdBy",
+        "createdAt"
+      ]
+    },
+    "LetterCounter": {
+      "title": "LetterCounter",
+      "description": "Sequential counter document stored in database for organized letter numbering.",
+      "type": "object",
+      "properties": {
+        "year": {
+          "type": "integer",
+          "description": "Counter year e.g. 2026"
+        },
+        "lastSequence": {
+          "type": "integer",
+          "description": "Latest sequential integer issued"
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "UID of user who triggered the counter increment",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp"
+        }
+      },
+      "required": ["year", "lastSequence", "updatedBy", "updatedAt"]
+    },
+    "OrganizationLetter": {
+      "title": "OrganizationLetter",
+      "description": "Issued organizational letter with sequential numbering, approval state, and Surat Tugas assignment.",
+      "type": "object",
+      "properties": {
+        "letterNumber": {
+          "type": "string",
+          "description": "Formatted sequential number e.g. 004/ST/WLN/X/2026",
+          "minLength": 5,
+          "maxLength": 60
+        },
+        "sequenceNumber": {
+          "type": "integer",
+          "description": "Numeric sequence order"
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the letter",
+          "enum": ["Surat Tugas", "Surat Keputusan", "Surat Undangan", "Surat Edaran"]
+        },
+        "subject": {
+          "type": "string",
+          "description": "Perihal / subject of the letter",
+          "minLength": 5,
+          "maxLength": 180
+        },
+        "recipientName": {
+          "type": "string",
+          "description": "Target recipient or assignee name",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "assigneeId": {
+          "type": "string",
+          "description": "UID of assigned user for Surat Tugas",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "supervisorId": {
+          "type": "string",
+          "description": "UID of supervisor notified for Surat Tugas",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "supervisorName": {
+          "type": "string",
+          "description": "Name of supervisor",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "location": {
+          "type": "string",
+          "description": "Task or event location",
+          "minLength": 2,
+          "maxLength": 120
+        },
+        "renderedBody": {
+          "type": "string",
+          "description": "Final compiled letter body",
+          "minLength": 20,
+          "maxLength": 10000
+        },
+        "monthIssued": {
+          "type": "integer",
+          "description": "Month index 1-12 for monthly analytics"
+        },
+        "yearIssued": {
+          "type": "integer",
+          "description": "Year e.g. 2026"
+        },
+        "status": {
+          "type": "string",
+          "description": "Approval status: pending_approval, approved, rejected",
+          "enum": ["pending_approval", "approved", "rejected"]
+        },
+        "taskCompletionStatus": {
+          "type": "string",
+          "description": "For Surat Tugas: not_applicable, assigned, in_progress, completed",
+          "enum": ["not_applicable", "assigned", "in_progress", "completed"]
+        },
+        "createdBy": {
+          "type": "string",
+          "description": "Creator UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last status update timestamp"
+        }
+      },
+      "required": [
+        "letterNumber",
+        "sequenceNumber",
+        "category",
+        "subject",
+        "recipientName",
+        "assigneeId",
+        "supervisorId",
+        "supervisorName",
+        "location",
+        "renderedBody",
+        "monthIssued",
+        "yearIssued",
+        "status",
+        "taskCompletionStatus",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "TaskReport": {
+      "title": "TaskReport",
+      "description": "Activity execution report based on an issued Surat Tugas with photo and supporting document evidence.",
+      "type": "object",
+      "properties": {
+        "letterId": {
+          "type": "string",
+          "description": "Referenced Surat Tugas document ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "letterNumber": {
+          "type": "string",
+          "description": "Referenced Surat Tugas number",
+          "minLength": 5,
+          "maxLength": 60
+        },
+        "taskTitle": {
+          "type": "string",
+          "description": "Title of completed activity",
+          "minLength": 5,
+          "maxLength": 180
+        },
+        "submittedBy": {
+          "type": "string",
+          "description": "UID of reporting officer",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "submittedByName": {
+          "type": "string",
+          "description": "Name of reporting officer",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "summaryResult": {
+          "type": "string",
+          "description": "Detailed report of field results and findings",
+          "minLength": 15,
+          "maxLength": 5000
+        },
+        "completionRate": {
+          "type": "integer",
+          "description": "Completion percentage 0 to 100"
+        },
+        "photoEvidenceName": {
+          "type": "string",
+          "description": "Filename or caption of attached photo evidence",
+          "minLength": 3,
+          "maxLength": 150
+        },
+        "photoEvidenceData": {
+          "type": "string",
+          "description": "Compact preview data URI or SVG/metadata reference",
+          "minLength": 5,
+          "maxLength": 150000
+        },
+        "supportingDocName": {
+          "type": "string",
+          "description": "Filename of attached supporting PDF/document",
+          "minLength": 3,
+          "maxLength": 150
+        },
+        "supportingDocSummary": {
+          "type": "string",
+          "description": "Document reference code and key excerpt",
+          "minLength": 5,
+          "maxLength": 1000
+        },
+        "verificationStatus": {
+          "type": "string",
+          "description": "Status: submitted, verified, revision_needed",
+          "enum": ["submitted", "verified", "revision_needed"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Submission timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        }
+      },
+      "required": [
+        "letterId",
+        "letterNumber",
+        "taskTitle",
+        "submittedBy",
+        "submittedByName",
+        "summaryResult",
+        "completionRate",
+        "photoEvidenceName",
+        "photoEvidenceData",
+        "supportingDocName",
+        "supportingDocSummary",
+        "verificationStatus",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "NotificationItem": {
+      "title": "NotificationItem",
+      "description": "Real-time notification for letter approval status, Surat Tugas assignment, and supervisor alerts.",
+      "type": "object",
+      "properties": {
+        "recipientId": {
+          "type": "string",
+          "description": "UID of recipient user or 'all_admins'",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "UID of actor who triggered notification",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short notification header",
+          "minLength": 3,
+          "maxLength": 140
+        },
+        "message": {
+          "type": "string",
+          "description": "Detailed notification body",
+          "minLength": 5,
+          "maxLength": 600
+        },
+        "category": {
+          "type": "string",
+          "description": "Notification type",
+          "enum": ["letter_approval", "surat_tugas_assignee", "surat_tugas_supervisor", "content_approval", "task_report"]
+        },
+        "referenceId": {
+          "type": "string",
+          "description": "Related letter, content, or report ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Whether the recipient has read the notification"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Update timestamp"
+        }
+      },
+      "required": [
+        "recipientId",
+        "senderId",
+        "title",
+        "message",
+        "category",
+        "referenceId",
+        "isRead",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Immutable real-time audit log entry for transparent organizational oversight.",
+      "type": "object",
+      "properties": {
+        "actorId": {
+          "type": "string",
+          "description": "UID of user performing the action",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "actorName": {
+          "type": "string",
+          "description": "Name of actor",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "actorLevel": {
+          "type": "integer",
+          "description": "Privilege level (0, 1, or 2)"
+        },
+        "actionType": {
+          "type": "string",
+          "description": "Category of logged action",
+          "enum": [
+            "SURAT_TUGAS_CREATED",
+            "LETTER_STATUS_CHANGED",
+            "CONTENT_CREATED",
+            "CONTENT_APPROVED",
+            "TASK_REPORT_SUBMITTED",
+            "USER_PRIVILEGE_UPDATED",
+            "SITE_CONFIG_UPDATED"
+          ]
+        },
+        "targetId": {
+          "type": "string",
+          "description": "Target entity ID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "details": {
+          "type": "string",
+          "description": "Human-readable audit description",
+          "minLength": 5,
+          "maxLength": 600
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of audit event"
+        }
+      },
+      "required": [
+        "actorId",
+        "actorName",
+        "actorLevel",
+        "actionType",
+        "targetId",
+        "details",
+        "createdAt"
+      ]
+    },
+    "YgiCmsState": {
+      "title": "YgiCmsState",
+      "description": "Cloud-persisted state section for Yayasan Gunung Parama Indonesia CMS (native map and list records).",
+      "type": "object",
+      "properties": {
+        "section": {
+          "type": "string",
+          "description": "Section identifier matching document ID",
+          "enum": [
+            "site_config",
+            "users",
+            "categories",
+            "contents",
+            "comments",
+            "templates",
+            "letters",
+            "reports",
+            "notifications",
+            "activity_logs"
+          ],
+          "minLength": 3,
+          "maxLength": 40
+        },
+        "items": {
+          "type": "array",
+          "description": "Bounded native list of section entity maps"
+        },
+        "config": {
+          "type": "object",
+          "description": "Native map for site_config section"
+        },
+        "sequence": {
+          "type": "integer",
+          "description": "Sequential letter counter integer"
+        },
+        "updatedBy": {
+          "type": "string",
+          "description": "UID of CMS user who updated the state",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of update"
+        }
+      },
+      "required": [
+        "section",
+        "items",
+        "config",
+        "sequence",
+        "updatedBy",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/site_config/{configId}": {
+      "schema": { "$ref": "#/entities/SiteConfig" },
+      "description": "Public website configuration settings"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublicProfile" },
+      "description": "Public user profiles and RBAC role levels (no PII)"
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Isolated private PII (email, phone) accessible only to owner or admin"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "CMS article categories"
+    },
+    "/contents/{contentId}": {
+      "schema": { "$ref": "#/entities/ContentArticle" },
+      "description": "CMS articles with approval state"
+    },
+    "/contents/{contentId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Real-time comments under a content article"
+    },
+    "/letter_templates/{templateId}": {
+      "schema": { "$ref": "#/entities/LetterTemplate" },
+      "description": "Uploaded and customized organizational letter templates"
+    },
+    "/letter_counters/{counterId}": {
+      "schema": { "$ref": "#/entities/LetterCounter" },
+      "description": "Sequential letter counter per year"
+    },
+    "/letters/{letterId}": {
+      "schema": { "$ref": "#/entities/OrganizationLetter" },
+      "description": "Issued organizational letters and Surat Tugas records"
+    },
+    "/task_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/TaskReport" },
+      "description": "Activity execution reports linked to Surat Tugas"
+    },
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/NotificationItem" },
+      "description": "User and supervisor notifications"
+    },
+    "/activity_logs/{logId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Immutable real-time audit logs"
+    },
+    "/ygi_cms_state/{sectionId}": {
+      "schema": { "$ref": "#/entities/YgiCmsState" },
+      "description": "Synchronized CMS state documents across reloads and republishes"
+    }
+  }
+}
