@@ -8,6 +8,7 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signOut,
+  GoogleAuthProvider,
   User as FirebaseUser,
 } from 'firebase/auth';
 import {
@@ -27,6 +28,7 @@ import {
   googleProvider,
   OperationType,
   handleFirestoreError,
+  setGoogleDriveAccessToken,
 } from './firebase';
 import {
   SiteConfig,
@@ -67,6 +69,8 @@ import {
   canManageWorkPrograms,
   validateAndFormatWorkProgram,
   isLoginRoutePath,
+  DriveRepositoryFile,
+  canUploadToRepository,
 } from './utils/cmsLogic';
 import {
   INITIAL_SITE_CONFIG,
@@ -75,6 +79,7 @@ import {
   INITIAL_CONTENTS,
   INITIAL_COMMENTS,
   INITIAL_WORK_PROGRAMS,
+  INITIAL_REPOSITORY_FILES,
   INITIAL_LETTER_TEMPLATES,
   INITIAL_LETTERS,
   INITIAL_TASK_REPORTS,
@@ -118,6 +123,7 @@ type CmsStateSection =
   | 'contents'
   | 'comments'
   | 'programs'
+  | 'repository'
   | 'templates'
   | 'letters'
   | 'reports'
@@ -149,6 +155,13 @@ export default function App() {
   );
   const [workPrograms, setWorkPrograms] = useState<WorkProgramItem[]>(() =>
     loadPersistedState<WorkProgramItem[]>('programs', INITIAL_WORK_PROGRAMS)
+  );
+  const [repositoryFiles, setRepositoryFiles] = useState<DriveRepositoryFile[]>(
+    () =>
+      loadPersistedState<DriveRepositoryFile[]>(
+        'repository',
+        INITIAL_REPOSITORY_FILES
+      )
   );
   const [templates, setTemplates] = useState<LetterTemplate[]>(() =>
     loadPersistedState<LetterTemplate[]>('templates', INITIAL_LETTER_TEMPLATES)
@@ -234,6 +247,10 @@ export default function App() {
   useEffect(() => {
     savePersistedState('programs', workPrograms);
   }, [workPrograms]);
+
+  useEffect(() => {
+    savePersistedState('repository', repositoryFiles);
+  }, [repositoryFiles]);
 
   useEffect(() => {
     savePersistedState('templates', templates);
@@ -621,6 +638,36 @@ export default function App() {
       )
     );
 
+    // Section 5C: repository (Google Drive PDF Repository)
+    unsubs.push(
+      onSnapshot(
+        doc(db, 'ygi_cms_state', 'repository'),
+        (snap) => {
+          if (snap.exists()) {
+            const d = snap.data();
+            if (Array.isArray(d.items) && d.items.length > 0) {
+              setRepositoryFiles(d.items as DriveRepositoryFile[]);
+            }
+          } else {
+            const currentItems = loadPersistedState<DriveRepositoryFile[]>(
+              'repository',
+              INITIAL_REPOSITORY_FILES
+            );
+            persistSectionToFirestore('repository', {
+              items: currentItems,
+            });
+          }
+        },
+        (error) => {
+          handleFirestoreError(
+            error,
+            OperationType.GET,
+            'ygi_cms_state/repository'
+          );
+        }
+      )
+    );
+
     // Section 6: templates
     unsubs.push(
       onSnapshot(
@@ -884,9 +931,12 @@ export default function App() {
 
   const handleGoogleOAuthLogin = async () => {
     const cred = await signInWithPopup(auth, googleProvider);
+    const oauthCred = GoogleAuthProvider.credentialFromResult(cred);
+    setGoogleDriveAccessToken(oauthCred?.accessToken ?? null);
     if (cred.user) {
       const check = authorizeGoogleOAuthUser(users, cred.user.email);
       if (!check.ok || !check.user) {
+        setGoogleDriveAccessToken(null);
         await signOut(auth);
         throw new Error(
           check.error ||
@@ -902,6 +952,7 @@ export default function App() {
   };
 
   const handleLogout = async () => {
+    setGoogleDriveAccessToken(null);
     if (auth.currentUser) {
       await signOut(auth);
     }
@@ -1188,6 +1239,55 @@ export default function App() {
         'WORK_PROGRAM_UPDATED',
         id,
         `Level ${currentUser.level} (${currentUser.displayName}) menghapus Program Kerja "${target.title}" dari Homepage.`
+      );
+    }
+  };
+
+  // Google Drive PDF Repository Handlers (Level 0 & Level 1 Upload/Manage, Level 2 View/Download)
+  const handleUploadRepositoryFile = (newFile: DriveRepositoryFile) => {
+    if (!currentUser || !canUploadToRepository(currentUser.level)) return;
+    setRepositoryFiles((prev) => {
+      const nextRepo = [newFile, ...prev.filter((f) => f.id !== newFile.id)];
+      savePersistedState('repository', nextRepo);
+      persistSectionToFirestore('repository', { items: nextRepo });
+      return nextRepo;
+    });
+
+    appendActivityLog(
+      'REPOSITORY_FILE_UPLOADED',
+      newFile.id,
+      `Level ${currentUser.level} (${currentUser.displayName}) mengunggah berkas PDF "${newFile.fileName}" ke Repositori Google Drive (${newFile.driveFolderId}).`
+    );
+  };
+
+  const handleSyncDriveFiles = (syncedFiles: DriveRepositoryFile[]) => {
+    if (syncedFiles.length === 0) return;
+    setRepositoryFiles((prev) => {
+      const existingIds = new Set(prev.map((f) => f.id));
+      const newFromDrive = syncedFiles.filter((f) => !existingIds.has(f.id));
+      if (newFromDrive.length === 0) return prev;
+      const nextRepo = [...newFromDrive, ...prev];
+      savePersistedState('repository', nextRepo);
+      persistSectionToFirestore('repository', { items: nextRepo });
+      return nextRepo;
+    });
+  };
+
+  const handleDeleteRepositoryFile = (fileId: string) => {
+    if (!currentUser || !canUploadToRepository(currentUser.level)) return;
+    const target = repositoryFiles.find((f) => f.id === fileId);
+    setRepositoryFiles((prev) => {
+      const nextRepo = prev.filter((f) => f.id !== fileId);
+      savePersistedState('repository', nextRepo);
+      persistSectionToFirestore('repository', { items: nextRepo });
+      return nextRepo;
+    });
+
+    if (target) {
+      appendActivityLog(
+        'REPOSITORY_FILE_DELETED',
+        fileId,
+        `Level ${currentUser.level} (${currentUser.displayName}) menghapus dokumen PDF "${target.fileName}" dari Repositori Google Drive.`
       );
     }
   };
@@ -1935,6 +2035,7 @@ export default function App() {
           categories={categories}
           contents={contents}
           workPrograms={workPrograms}
+          repositoryFiles={repositoryFiles}
           templates={templates}
           letterSequence={letterSequence}
           letters={letters}
@@ -1972,6 +2073,9 @@ export default function App() {
           onCreateWorkProgram={handleCreateWorkProgram}
           onUpdateWorkProgram={handleUpdateWorkProgram}
           onDeleteWorkProgram={handleDeleteWorkProgram}
+          onUploadRepositoryFile={handleUploadRepositoryFile}
+          onSyncDriveFiles={handleSyncDriveFiles}
+          onDeleteRepositoryFile={handleDeleteRepositoryFile}
           onSaveTemplate={handleSaveTemplate}
           onCreateLetter={handleCreateLetter}
           onUpdateLetterStatus={handleUpdateLetterStatus}

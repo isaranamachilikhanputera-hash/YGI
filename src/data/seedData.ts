@@ -10,9 +10,12 @@ import {
   TaskReport,
   NotificationItem,
   ActivityLog,
+  DriveRepositoryFile,
   getDefaultPermissionsForLevel,
   DEFAULT_YGI_LOGO_DATA_URL,
   DEFAULT_ALLOWED_DOMAINS,
+  GOOGLE_DRIVE_FOLDER_ID,
+  GOOGLE_DRIVE_FOLDER_URL,
 } from '../utils/cmsLogic';
 
 export const SUPERADMIN_ACCESS_KEY = 'WANA-SUPER-2026';
@@ -570,3 +573,67 @@ export const INITIAL_ACTIVITY_LOGS: ActivityLog[] = [
     createdAt: '2026-09-28T16:15:00.000Z',
   },
 ];
+
+export const INITIAL_REPOSITORY_FILES: DriveRepositoryFile[] = [
+  {
+    id: 'repo_pdf_01',
+    fileName: 'SOP_Patroli_Konservasi_dan_Restorasi_DAS_YGI_2026.pdf',
+    title: 'SOP Patroli Konservasi & Restorasi DAS YGI 2026',
+    description:
+      'Standar Operasional Prosedur resmi pelaksanaan patroli hutan lindung, pemantauan kamera jebak, dan rehabilitasi Daerah Aliran Sungai untuk seluruh tim lapangan Yayasan Gunung Parama Indonesia.',
+    category: 'SOP Lapangan',
+    mimeType: 'application/pdf',
+    sizeBytes: 2458624, // ~2.34 MB
+    driveFolderId: GOOGLE_DRIVE_FOLDER_ID,
+    driveFolderUrl: GOOGLE_DRIVE_FOLDER_URL,
+    webViewLink: GOOGLE_DRIVE_FOLDER_URL,
+    webContentLink: GOOGLE_DRIVE_FOLDER_URL,
+    uploadedByUid: 'usr_superadmin_01',
+    uploadedByName: 'Ir. Bagus Santoso, IPU',
+    uploadedByLevel: 0,
+    uploadedByRole: 'superadmin',
+    syncSource: 'cms_cloud_mirror',
+    createdAt: '2026-10-15T09:00:00.000Z',
+  },
+  {
+    id: 'repo_pdf_02',
+    fileName: 'Pedoman_Inventarisasi_Bibit_Meranti_dan_Pelaporan_ST.pdf',
+    title: 'Pedoman Teknis Inventarisasi Bibit Meranti & Pelaporan Surat Tugas',
+    description:
+      'Panduan teknis pengukuran petak ukur permanen Dipterocarpaceae serta format pelaporan bukti lapangan bagi kontributor Level 2.',
+    category: 'Laporan Konservasi',
+    mimeType: 'application/pdf',
+    sizeBytes: 1843200, // ~1.76 MB
+    driveFolderId: GOOGLE_DRIVE_FOLDER_ID,
+    driveFolderUrl: GOOGLE_DRIVE_FOLDER_URL,
+    webViewLink: GOOGLE_DRIVE_FOLDER_URL,
+    webContentLink: GOOGLE_DRIVE_FOLDER_URL,
+    uploadedByUid: 'usr_admin_hendra',
+    uploadedByName: 'Dr. Hendra Wijaya, M.Hut',
+    uploadedByLevel: 1,
+    uploadedByRole: 'admin',
+    syncSource: 'cms_cloud_mirror',
+    createdAt: '2026-10-22T11:30:00.000Z',
+  },
+  {
+    id: 'repo_pdf_03',
+    fileName: 'SK_Dewan_Pengurus_Tata_Kelola_Hutan_Adat_2026.pdf',
+    title: 'SK Dewan Pengurus: Tata Kelola Kemitraan Hutan Adat 2026',
+    description:
+      'Salinan resmi Surat Keputusan Dewan Eksekutif YGI mengenai protokol kolaborasi masyarakat hukum adat dan perlindungan koridor satwa liar.',
+    category: 'SK & Regulasi',
+    mimeType: 'application/pdf',
+    sizeBytes: 3194880, // ~3.05 MB
+    driveFolderId: GOOGLE_DRIVE_FOLDER_ID,
+    driveFolderUrl: GOOGLE_DRIVE_FOLDER_URL,
+    webViewLink: GOOGLE_DRIVE_FOLDER_URL,
+    webContentLink: GOOGLE_DRIVE_FOLDER_URL,
+    uploadedByUid: 'usr_editor_nabila',
+    uploadedByName: 'Nabila Kusuma, S.Hut',
+    uploadedByLevel: 1,
+    uploadedByRole: 'editor',
+    syncSource: 'cms_cloud_mirror',
+    createdAt: '2026-10-26T14:20:00.000Z',
+  },
+];
+

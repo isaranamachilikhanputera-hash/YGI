@@ -515,5 +515,172 @@ test('Work Program RBAC (Level 0 & Level 1), Vercel domain allowlist, and /login
   assert.equal(isLoginRoutePath('/'), false);
 });
 
+test('Google Drive PDF Repository RBAC (Level 0/1 upload, Level 2 view/download) and 10MB PDF validation', async () => {
+  const {
+    GOOGLE_DRIVE_FOLDER_ID,
+    GOOGLE_DRIVE_FOLDER_URL,
+    MAX_REPOSITORY_PDF_SIZE_BYTES,
+    canUploadToRepository,
+    canViewAndDownloadRepository,
+    getVisibleCmsTabsForLevel,
+    validateRepositoryPdfUpload,
+    formatFileSizeLabel,
+    buildRepositoryPdfBytes,
+    computeDriveUploadProgressPercent,
+    isUploadedToGoogleDrive,
+    getGoogleDriveEmbedPreviewUrl,
+    getGoogleDriveFileViewUrl,
+    buildGoogleDriveMultipartParts,
+  } = await import('./cmsLogic');
+
+  assert.equal(GOOGLE_DRIVE_FOLDER_ID, '1UvK-WbdQIUJFfcwtJyP2wTtQpgygrucc');
+  assert.equal(
+    GOOGLE_DRIVE_FOLDER_URL,
+    'https://drive.google.com/drive/folders/1UvK-WbdQIUJFfcwtJyP2wTtQpgygrucc?usp=drive_link'
+  );
+  assert.equal(MAX_REPOSITORY_PDF_SIZE_BYTES, 10 * 1024 * 1024);
+
+  // Level 0 and Level 1 can upload; Level 2 cannot upload
+  assert.equal(canUploadToRepository(0), true);
+  assert.equal(canUploadToRepository(1), true);
+  assert.equal(canUploadToRepository(2), false);
+
+  // All levels (0, 1, and 2) can view and download from the repository tab
+  assert.equal(canViewAndDownloadRepository(0), true);
+  assert.equal(canViewAndDownloadRepository(1), true);
+  assert.equal(canViewAndDownloadRepository(2), true);
+  assert.equal(getVisibleCmsTabsForLevel(0).includes('repository'), true);
+  assert.equal(getVisibleCmsTabsForLevel(1).includes('repository'), true);
+  assert.equal(getVisibleCmsTabsForLevel(2).includes('repository'), true);
+
+  // Valid PDF <= 10MB by Level 0 or Level 1 succeeds
+  const validLv0 = validateRepositoryPdfUpload({
+    fileName: 'Pedoman_Restorasi_2026.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 2 * 1024 * 1024, // 2 MB
+    actorLevel: 0,
+    title: 'Pedoman Restorasi 2026',
+  });
+  assert.equal(validLv0.valid, true);
+  assert.equal(validLv0.cleanedFileName, 'Pedoman_Restorasi_2026.pdf');
+
+  const validLv1Exact10Mb = validateRepositoryPdfUpload({
+    fileName: 'Laporan_Tahunan_10MB.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 10 * 1024 * 1024, // exact 10 MB limit
+    actorLevel: 1,
+  });
+  assert.equal(validLv1Exact10Mb.valid, true);
+
+  // Rejects upload from Level 2
+  const rejectedLv2 = validateRepositoryPdfUpload({
+    fileName: 'Dokumen_Level2.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 500 * 1024,
+    actorLevel: 2,
+  });
+  assert.equal(rejectedLv2.valid, false);
+
+  // Rejects non-PDF files (.docx, .jpg)
+  const rejectedNonPdf = validateRepositoryPdfUpload({
+    fileName: 'Lampiran_Foto.jpg',
+    mimeType: 'image/jpeg',
+    sizeBytes: 500 * 1024,
+    actorLevel: 0,
+  });
+  assert.equal(rejectedNonPdf.valid, false);
+
+  // Rejects PDF > 10MB
+  const rejectedOver10Mb = validateRepositoryPdfUpload({
+    fileName: 'Peta_Resolusi_Tinggi_11MB.pdf',
+    mimeType: 'application/pdf',
+    sizeBytes: 10 * 1024 * 1024 + 1,
+    actorLevel: 1,
+  });
+  assert.equal(rejectedOver10Mb.valid, false);
+
+  assert.equal(formatFileSizeLabel(10 * 1024 * 1024), '10.00 MB');
+
+  // Upload progress calculation from 0% -> 100%
+  assert.equal(computeDriveUploadProgressPercent('idle'), 0);
+  assert.equal(computeDriveUploadProgressPercent('authenticating'), 12);
+  assert.equal(computeDriveUploadProgressPercent('preparing'), 22);
+  assert.equal(
+    computeDriveUploadProgressPercent('uploading_gdrive', 500, 1000),
+    58
+  );
+  assert.equal(
+    computeDriveUploadProgressPercent('uploading_gdrive', 1000, 1000),
+    90
+  );
+  assert.equal(computeDriveUploadProgressPercent('verifying_gdrive'), 95);
+  assert.equal(computeDriveUploadProgressPercent('completed'), 100);
+  assert.equal(computeDriveUploadProgressPercent('error'), 0);
+
+  // Verify Google Drive upload status vs local mirror
+  assert.equal(
+    isUploadedToGoogleDrive({
+      driveFileId: '1AbCdEfGhIjKlMnOpQrStUvWxYz',
+      syncSource: 'google_drive_api',
+    }),
+    true
+  );
+  assert.equal(
+    isUploadedToGoogleDrive({
+      driveFileId: undefined,
+      syncSource: 'cms_cloud_mirror',
+    }),
+    false
+  );
+
+  // Verify Google Drive preview & view URLs
+  assert.equal(
+    getGoogleDriveEmbedPreviewUrl('1FileId123'),
+    'https://drive.google.com/file/d/1FileId123/preview'
+  );
+  assert.equal(getGoogleDriveEmbedPreviewUrl(''), null);
+  assert.equal(
+    getGoogleDriveFileViewUrl('1FileId123'),
+    'https://drive.google.com/file/d/1FileId123/view?usp=drivesdk'
+  );
+
+  // Verify RFC 2387 multipart/related framing for Google Drive API v3
+  const multipart = buildGoogleDriveMultipartParts(
+    {
+      name: 'Dokumen_Resmi.pdf',
+      mimeType: 'application/pdf',
+      parents: [GOOGLE_DRIVE_FOLDER_ID],
+    },
+    'test_boundary_123'
+  );
+  assert.equal(
+    multipart.contentTypeHeader,
+    'multipart/related; boundary=test_boundary_123'
+  );
+  assert.equal(
+    multipart.headerPart.includes('"parents":["1UvK-WbdQIUJFfcwtJyP2wTtQpgygrucc"]'),
+    true
+  );
+  assert.equal(multipart.footerPart, '\r\n--test_boundary_123--');
+
+  // Repository PDF binary generator produces valid PDF
+  const pdfBytes = buildRepositoryPdfBytes({
+    title: 'SOP Patroli Konservasi',
+    fileName: 'SOP_Patroli_Konservasi.pdf',
+    category: 'SOP Lapangan',
+    description: 'Standar operasional prosedur patroli hutan.',
+    sizeBytes: 1048576,
+    uploadedByName: 'Ir. Bagus Santoso, IPU',
+    uploadedByLevel: 0,
+    createdAt: '2026-10-30T00:00:00.000Z',
+    driveFolderUrl: GOOGLE_DRIVE_FOLDER_URL,
+  });
+  const pdfStr = new TextDecoder().decode(pdfBytes);
+  assert.equal(pdfStr.startsWith('%PDF-1.4'), true);
+  assert.equal(pdfStr.includes('SOP_Patroli_Konservasi.pdf'), true);
+  assert.equal(pdfStr.trim().endsWith('%%EOF'), true);
+});
+
+
 
 

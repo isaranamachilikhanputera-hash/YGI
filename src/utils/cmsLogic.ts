@@ -160,6 +160,28 @@ export interface NotificationItem {
   updatedAt: string;
 }
 
+export interface DriveRepositoryFile {
+  id: string;
+  fileName: string;
+  title: string;
+  description: string;
+  category: string;
+  mimeType: 'application/pdf';
+  sizeBytes: number;
+  driveFolderId: string;
+  driveFolderUrl: string;
+  driveFileId?: string;
+  webViewLink: string;
+  webContentLink: string;
+  pdfDataUrl?: string;
+  uploadedByUid: string;
+  uploadedByName: string;
+  uploadedByLevel: UserLevel;
+  uploadedByRole: RoleName;
+  syncSource: 'google_drive_api' | 'cms_cloud_mirror';
+  createdAt: string;
+}
+
 export interface ActivityLog {
   id: string;
   actorId: string;
@@ -173,7 +195,9 @@ export interface ActivityLog {
     | 'TASK_REPORT_SUBMITTED'
     | 'USER_PRIVILEGE_UPDATED'
     | 'SITE_CONFIG_UPDATED'
-    | 'WORK_PROGRAM_UPDATED';
+    | 'WORK_PROGRAM_UPDATED'
+    | 'REPOSITORY_FILE_UPLOADED'
+    | 'REPOSITORY_FILE_DELETED';
   targetId: string;
   details: string;
   createdAt: string;
@@ -575,6 +599,7 @@ export function getVisibleCmsTabsForLevel(
   | 'dashboard'
   | 'contents'
   | 'programs'
+  | 'repository'
   | 'letters'
   | 'reports'
   | 'users'
@@ -586,6 +611,7 @@ export function getVisibleCmsTabsForLevel(
       'dashboard',
       'contents',
       'programs',
+      'repository',
       'letters',
       'reports',
       'users',
@@ -594,18 +620,232 @@ export function getVisibleCmsTabsForLevel(
     ];
   }
   if (level === 1) {
-    // Level 1 (Admin / Editor) can manage Program Kerja alongside content, letters, reports, and notifications
+    // Level 1 (Admin / Editor) can manage Program Kerja & upload/manage Repository alongside content, letters, reports, and notifications
     return [
       'dashboard',
       'contents',
       'programs',
+      'repository',
       'letters',
       'reports',
       'notifications',
     ];
   }
-  // Level 2 (Contributor) does NOT see 'programs', 'users', or 'settings'
-  return ['dashboard', 'contents', 'letters', 'reports', 'notifications'];
+  // Level 2 (Contributor) sees 'repository' (view & download files uploaded by Level 0 and Level 1),
+  // and does NOT see 'programs', 'users', or 'settings'
+  return [
+    'dashboard',
+    'contents',
+    'repository',
+    'letters',
+    'reports',
+    'notifications',
+  ];
+}
+
+export const GOOGLE_DRIVE_FOLDER_ID = '1UvK-WbdQIUJFfcwtJyP2wTtQpgygrucc';
+export const GOOGLE_DRIVE_FOLDER_URL =
+  'https://drive.google.com/drive/folders/1UvK-WbdQIUJFfcwtJyP2wTtQpgygrucc?usp=drive_link';
+export const MAX_REPOSITORY_PDF_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
+
+export function canUploadToRepository(actorLevel: UserLevel): boolean {
+  return actorLevel === 0 || actorLevel === 1;
+}
+
+export function canViewAndDownloadRepository(actorLevel: UserLevel): boolean {
+  return actorLevel === 0 || actorLevel === 1 || actorLevel === 2;
+}
+
+export function formatFileSizeLabel(bytes: number): string {
+  const safeBytes = Math.max(0, Number(bytes) || 0);
+  if (safeBytes < 1024) {
+    return `${safeBytes} B`;
+  }
+  const kb = safeBytes / 1024;
+  if (kb < 1024) {
+    return `${kb.toFixed(1)} KB`;
+  }
+  const mb = safeBytes / (1024 * 1024);
+  return `${mb.toFixed(2)} MB`;
+}
+
+export function validateRepositoryPdfUpload(input: {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  actorLevel: UserLevel;
+  title?: string;
+}): {
+  valid: boolean;
+  cleanedFileName: string;
+  cleanedTitle: string;
+  error?: string;
+} {
+  const cleanedFileName = (input.fileName || '').trim();
+  const defaultTitle = cleanedFileName
+    .replace(/\.pdf$/i, '')
+    .replace(/[_\-]+/g, ' ')
+    .trim();
+  const cleanedTitle = (input.title || defaultTitle || 'Dokumen PDF YGI')
+    .trim()
+    .slice(0, 160);
+
+  if (!canUploadToRepository(input.actorLevel)) {
+    return {
+      valid: false,
+      cleanedFileName,
+      cleanedTitle,
+      error:
+        'Akses ditolak: Hanya pengguna Level 0 (Superadmin) dan Level 1 (Admin/Editor) yang dapat mengunggah file ke repositori Google Drive.',
+    };
+  }
+
+  if (!cleanedFileName) {
+    return {
+      valid: false,
+      cleanedFileName,
+      cleanedTitle,
+      error: 'Pilih file PDF terlebih dahulu sebelum mengunggah.',
+    };
+  }
+
+  const lowerName = cleanedFileName.toLowerCase();
+  const lowerMime = (input.mimeType || '').trim().toLowerCase();
+  const isPdfExtension = lowerName.endsWith('.pdf');
+  const isPdfMime =
+    lowerMime === 'application/pdf' ||
+    lowerMime === 'application/x-pdf' ||
+    (lowerMime === '' && isPdfExtension);
+
+  if (!isPdfExtension || !isPdfMime) {
+    return {
+      valid: false,
+      cleanedFileName,
+      cleanedTitle,
+      error:
+        'Format file tidak valid: File yang diunggah wajib berjenis PDF (.pdf).',
+    };
+  }
+
+  if (typeof input.sizeBytes !== 'number' || input.sizeBytes <= 0) {
+    return {
+      valid: false,
+      cleanedFileName,
+      cleanedTitle,
+      error: 'Ukuran file PDF tidak valid (0 byte).',
+    };
+  }
+
+  if (input.sizeBytes > MAX_REPOSITORY_PDF_SIZE_BYTES) {
+    return {
+      valid: false,
+      cleanedFileName,
+      cleanedTitle,
+      error: `Ukuran file (${formatFileSizeLabel(
+        input.sizeBytes
+      )}) melebihi batas maksimal 10 MB.`,
+    };
+  }
+
+  return {
+    valid: true,
+    cleanedFileName,
+    cleanedTitle,
+  };
+}
+
+export type DriveUploadStage =
+  | 'idle'
+  | 'authenticating'
+  | 'preparing'
+  | 'uploading_gdrive'
+  | 'verifying_gdrive'
+  | 'completed'
+  | 'error';
+
+export function computeDriveUploadProgressPercent(
+  stage: DriveUploadStage,
+  loadedBytes = 0,
+  totalBytes = 0
+): number {
+  switch (stage) {
+    case 'idle':
+      return 0;
+    case 'authenticating':
+      return 12;
+    case 'preparing':
+      return 22;
+    case 'uploading_gdrive': {
+      if (totalBytes <= 0) return 45;
+      const ratio = Math.max(0, Math.min(1, loadedBytes / totalBytes));
+      return Math.min(90, 25 + Math.round(ratio * 65));
+    }
+    case 'verifying_gdrive':
+      return 95;
+    case 'completed':
+      return 100;
+    case 'error':
+      return 0;
+  }
+}
+
+export function isUploadedToGoogleDrive(
+  file: Pick<DriveRepositoryFile, 'driveFileId' | 'syncSource'>
+): boolean {
+  return Boolean(
+    file.driveFileId &&
+      file.driveFileId.trim().length > 0 &&
+      file.syncSource === 'google_drive_api'
+  );
+}
+
+export function getGoogleDriveEmbedPreviewUrl(
+  driveFileId?: string
+): string | null {
+  const cleanId = (driveFileId || '').trim();
+  if (!cleanId) return null;
+  return `https://drive.google.com/file/d/${cleanId}/preview`;
+}
+
+export function getGoogleDriveFileViewUrl(
+  driveFileId?: string,
+  webViewLink?: string
+): string {
+  const cleanId = (driveFileId || '').trim();
+  if (cleanId) {
+    return `https://drive.google.com/file/d/${cleanId}/view?usp=drivesdk`;
+  }
+  return webViewLink && webViewLink.trim()
+    ? webViewLink.trim()
+    : GOOGLE_DRIVE_FOLDER_URL;
+}
+
+export function buildGoogleDriveMultipartParts(
+  metadata: {
+    name: string;
+    mimeType: string;
+    parents: string[];
+    description?: string;
+  },
+  boundary = '-------ygi_gdrive_multipart_boundary'
+): {
+  headerPart: string;
+  footerPart: string;
+  contentTypeHeader: string;
+} {
+  const cleanBoundary = boundary.trim() || '-------ygi_gdrive_multipart_boundary';
+  const headerPart =
+    `--${cleanBoundary}\r\n` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(metadata) +
+    `\r\n--${cleanBoundary}\r\n` +
+    `Content-Type: ${metadata.mimeType || 'application/pdf'}\r\n\r\n`;
+  const footerPart = `\r\n--${cleanBoundary}--`;
+  return {
+    headerPart,
+    footerPart,
+    contentTypeHeader: `multipart/related; boundary=${cleanBoundary}`,
+  };
 }
 
 export function validateAndFormatUserName(rawName: string): {
@@ -1086,15 +1326,112 @@ export function normalizeSiteConfig(
   };
 }
 
+export function buildRepositoryPdfBytes(
+  docItem: Pick<
+    DriveRepositoryFile,
+    | 'title'
+    | 'fileName'
+    | 'category'
+    | 'description'
+    | 'sizeBytes'
+    | 'uploadedByName'
+    | 'uploadedByLevel'
+    | 'createdAt'
+    | 'driveFolderUrl'
+    | 'driveFileId'
+  >,
+  siteName = DEFAULT_ORGANIZATION_NAME
+): Uint8Array {
+  const headerLines = [
+    siteName.toUpperCase() + ' (YGI)',
+    'REPOSITORI DOKUMEN RESMI ORGANISASI — GOOGLE DRIVE ARCHIVE',
+    '==================================================================================',
+    `JUDUL DOKUMEN   : ${docItem.title}`,
+    `NAMA BERKAS PDF : ${docItem.fileName}`,
+    `KATEGORI        : ${docItem.category}`,
+    `UKURAN BERKAS   : ${formatFileSizeLabel(docItem.sizeBytes)} (Maks. 10 MB)`,
+    `DIUNGGAH OLEH   : ${docItem.uploadedByName} (Level ${docItem.uploadedByLevel})`,
+    `TANGGAL UNGGAH  : ${new Date(docItem.createdAt).toLocaleString('id-ID')}`,
+    `FOLDER GDRIVE   : ${docItem.driveFolderUrl || GOOGLE_DRIVE_FOLDER_URL}`,
+    docItem.driveFileId
+      ? `ID FILE GDRIVE  : ${docItem.driveFileId}`
+      : 'STATUS ARSIP    : Tersinkronisasi pada Repositori Cloud CMS YGI',
+    '----------------------------------------------------------------------------------',
+    '',
+    'RINGKASAN & ISI DOKUMEN REPOSITORI:',
+    '',
+  ];
+
+  const bodyLines = wrapTextLines(
+    docItem.description ||
+      'Dokumen resmi Yayasan Gunung Parama Indonesia yang diunggah oleh Pengurus Level 0 / Level 1.',
+    82
+  );
+  const footerLines = [
+    '',
+    '----------------------------------------------------------------------------------',
+    'Dokumen ini tersedia bagi anggota dan kontributor (Level 2) maupun pengurus',
+    'melalui menu Repositori Dokumen (Google Drive) pada Dashboard CMS YGI.',
+  ];
+  const allLines = [...headerLines, ...bodyLines, ...footerLines].slice(0, 48);
+
+  const contentOps: string[] = ['BT', '/F1 10 Tf', '50 790 Td', '14 TL'];
+  allLines.forEach((line, index) => {
+    const escaped = escapePdfText(line);
+    if (index === 0) {
+      contentOps.push(`(${escaped}) Tj`);
+    } else {
+      contentOps.push(`T* (${escaped}) Tj`);
+    }
+  });
+  contentOps.push('ET');
+
+  const streamContent = contentOps.join('\n') + '\n';
+
+  const objects: string[] = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n',
+    '4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>\nendobj\n',
+    `5 0 obj\n<< /Length ${streamContent.length} >>\nstream\n${streamContent}endstream\nendobj\n`,
+  ];
+
+  let pdfString = '%PDF-1.4\n';
+  const offsets: number[] = [0];
+
+  for (const obj of objects) {
+    offsets.push(pdfString.length);
+    pdfString += obj;
+  }
+
+  const xrefStart = pdfString.length;
+  pdfString += `xref\n0 ${objects.length + 1}\n`;
+  pdfString += '0000000000 65535 f \n';
+  for (let i = 1; i <= objects.length; i++) {
+    const offStr = String(offsets[i]).padStart(10, '0');
+    pdfString += `${offStr} 00000 n \n`;
+  }
+
+  pdfString += `trailer\n<< /Size ${
+    objects.length + 1
+  } /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF\n`;
+
+  const encoder = new TextEncoder();
+  return encoder.encode(pdfString);
+}
+
 export function sanitizeForFirestore<T>(value: T): T {
   if (value === null || value === undefined) {
     return '' as unknown as T;
   }
   if (typeof value === 'string') {
-    // Do NOT slice base64 data:image/ strings mid-stream (slicing corrupts the bottom of the image).
-    // Allow full data:image/ strings up to 950,000 chars; only cap non-image text strings at 350,000.
+    // Do NOT slice base64 data:image/ or data:application/pdf strings mid-stream.
     if (value.startsWith('data:image/')) {
       return value as unknown as T;
+    }
+    if (value.startsWith('data:application/pdf')) {
+      // Keep inline PDF data URLs if compact enough for Firestore document limits; otherwise omit inline blob and use Drive link / PDF generator
+      return (value.length <= 280000 ? value : '') as unknown as T;
     }
     if (value.length > 350000) {
       return value.slice(0, 350000) as unknown as T;
@@ -1117,6 +1454,7 @@ export function sanitizeForFirestore<T>(value: T): T {
   }
   return value;
 }
+
 
 
 

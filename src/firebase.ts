@@ -1,15 +1,58 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+
+export const GOOGLE_DRIVE_SCOPES = ['https://www.googleapis.com/auth/drive'];
+
 export const googleProvider = new GoogleAuthProvider();
+GOOGLE_DRIVE_SCOPES.forEach((scope) => googleProvider.addScope(scope));
 googleProvider.setCustomParameters({
   prompt: 'select_account',
+  include_granted_scopes: 'true',
 });
+
+// In-memory OAuth access token cache (never stored in localStorage or sessionStorage)
+let cachedAccessToken: string | null = null;
+
+export function getGoogleDriveAccessToken(): string | null {
+  return cachedAccessToken;
+}
+
+export function setGoogleDriveAccessToken(token: string | null): void {
+  cachedAccessToken = token;
+}
+
+export async function connectGoogleDriveOAuth(
+  forceConsent = false
+): Promise<{
+  accessToken: string;
+  email: string | null;
+}> {
+  const driveProvider = new GoogleAuthProvider();
+  GOOGLE_DRIVE_SCOPES.forEach((scope) => driveProvider.addScope(scope));
+  driveProvider.setCustomParameters({
+    prompt: forceConsent ? 'consent select_account' : 'select_account',
+    include_granted_scopes: 'true',
+  });
+  const result = await signInWithPopup(auth, driveProvider);
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  const token = credential?.accessToken ?? null;
+  if (!token) {
+    throw new Error(
+      'Tidak dapat memperoleh token akses Google Drive. Pastikan izin Google Drive disetujui pada jendela login Google.'
+    );
+  }
+  cachedAccessToken = token;
+  return {
+    accessToken: token,
+    email: result.user?.email ?? null,
+  };
+}
 
 export const ALLOWED_DEPLOYMENT_DOMAINS = [
   'ygi-omega.vercel.app',

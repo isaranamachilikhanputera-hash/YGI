@@ -40,7 +40,9 @@ import {
   canManageWorkPrograms,
   validateAndFormatWorkProgram,
   DEFAULT_ALLOWED_DOMAINS,
+  DriveRepositoryFile,
 } from '../utils/cmsLogic';
+import { CmsRepositoryTab } from './CmsRepositoryTab';
 import { ArticleThemeIllustration } from './ForestIllustrations';
 import {
   BarChart3,
@@ -68,12 +70,14 @@ import {
   Video,
   Printer,
   Download,
+  FolderOpen,
 } from 'lucide-react';
 
 export type CmsTab =
   | 'dashboard'
   | 'contents'
   | 'programs'
+  | 'repository'
   | 'letters'
   | 'reports'
   | 'users'
@@ -87,6 +91,7 @@ interface CmsWorkspaceProps {
   categories: CategoryItem[];
   contents: ContentArticle[];
   workPrograms: WorkProgramItem[];
+  repositoryFiles: DriveRepositoryFile[];
   templates: LetterTemplate[];
   letterSequence: number;
   letters: OrganizationLetter[];
@@ -124,6 +129,9 @@ interface CmsWorkspaceProps {
     data: { code: string; title: string; description: string }
   ) => void;
   onDeleteWorkProgram: (id: string) => void;
+  onUploadRepositoryFile: (newFile: DriveRepositoryFile) => void;
+  onSyncDriveFiles: (syncedFiles: DriveRepositoryFile[]) => void;
+  onDeleteRepositoryFile: (fileId: string) => void;
   onSaveTemplate: (data: {
     name: string;
     category: LetterCategory;
@@ -189,6 +197,7 @@ export function CmsWorkspace({
   categories,
   contents,
   workPrograms,
+  repositoryFiles,
   templates,
   letterSequence,
   letters,
@@ -205,6 +214,9 @@ export function CmsWorkspace({
   onCreateWorkProgram,
   onUpdateWorkProgram,
   onDeleteWorkProgram,
+  onUploadRepositoryFile,
+  onSyncDriveFiles,
+  onDeleteRepositoryFile,
   onSaveTemplate,
   onCreateLetter,
   onUpdateLetterStatus,
@@ -899,6 +911,12 @@ export function CmsWorkspace({
       label: 'Program Kerja',
       icon: <Layers className="w-4 h-4" />,
       badge: workPrograms.length > 0 ? workPrograms.length : undefined,
+    },
+    {
+      id: 'repository',
+      label: 'Repositori Dokumen (GDrive)',
+      icon: <FolderOpen className="w-4 h-4" />,
+      badge: repositoryFiles.length > 0 ? repositoryFiles.length : undefined,
     },
     {
       id: 'letters',
@@ -2145,6 +2163,21 @@ export function CmsWorkspace({
                 </div>
               </div>
             )}
+
+          {/* ===============================================================
+              TAB 2C: GOOGLE DRIVE PDF REPOSITORY (LEVEL 0/1 UPLOAD, LEVEL 2 VIEW & DOWNLOAD)
+          =============================================================== */}
+          {activeTab === 'repository' && (
+            <CmsRepositoryTab
+              currentUser={currentUser}
+              siteName={siteConfig.siteName}
+              repositoryFiles={repositoryFiles}
+              onUploadRepositoryFile={onUploadRepositoryFile}
+              onSyncDriveFiles={onSyncDriveFiles}
+              onDeleteRepositoryFile={onDeleteRepositoryFile}
+              onNotifyToast={showToast}
+            />
+          )}
 
           {/* ===============================================================
               TAB 3: AUTOMATED ORGANIZATIONAL LETTER GENERATOR & COUNTER

@@ -782,7 +782,9 @@
             "TASK_REPORT_SUBMITTED",
             "USER_PRIVILEGE_UPDATED",
             "SITE_CONFIG_UPDATED",
-            "WORK_PROGRAM_UPDATED"
+            "WORK_PROGRAM_UPDATED",
+            "REPOSITORY_FILE_UPLOADED",
+            "REPOSITORY_FILE_DELETED"
           ]
         },
         "targetId": {
@@ -829,6 +831,7 @@
             "contents",
             "comments",
             "programs",
+            "repository",
             "templates",
             "letters",
             "reports",

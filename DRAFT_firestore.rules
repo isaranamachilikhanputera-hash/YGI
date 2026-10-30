@@ -269,7 +269,8 @@ service cloud.firestore {
         data.actionType in [
           'SURAT_TUGAS_CREATED', 'LETTER_STATUS_CHANGED', 'CONTENT_CREATED',
           'CONTENT_APPROVED', 'TASK_REPORT_SUBMITTED', 'USER_PRIVILEGE_UPDATED',
-          'SITE_CONFIG_UPDATED', 'WORK_PROGRAM_UPDATED'
+          'SITE_CONFIG_UPDATED', 'WORK_PROGRAM_UPDATED',
+          'REPOSITORY_FILE_UPLOADED', 'REPOSITORY_FILE_DELETED'
         ] &&
         isValidId(data.targetId) &&
         data.details is string && data.details.size() >= 5 && data.details.size() <= 600 &&
@@ -282,7 +283,7 @@ service cloud.firestore {
         data.section is string && data.section.size() >= 3 && data.section.size() <= 40 &&
         data.section in [
           'site_config', 'users', 'categories', 'contents', 'comments', 'programs',
-          'templates', 'letters', 'reports', 'notifications', 'activity_logs'
+          'repository', 'templates', 'letters', 'reports', 'notifications', 'activity_logs'
         ] &&
         data.items is list && data.items.size() <= 500 &&
         (data.items.size() == 0 || data.items[0] is map) &&
