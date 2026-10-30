@@ -1,7 +1,18 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
-import firebaseConfig from '../firebase-applet-config.json';
+import rawFirebaseConfig from '../firebase-applet-config.json';
+import { resolveFirebaseClientConfig } from './utils/cmsLogic';
+
+const envMeta =
+  typeof import.meta !== 'undefined' && (import.meta as any).env
+    ? ((import.meta as any).env as Record<string, string | undefined>)
+    : {};
+
+export const firebaseConfig = resolveFirebaseClientConfig(
+  rawFirebaseConfig,
+  envMeta
+);
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);

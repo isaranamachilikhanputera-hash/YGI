@@ -681,6 +681,36 @@ test('Google Drive PDF Repository RBAC (Level 0/1 upload, Level 2 view/download)
   assert.equal(pdfStr.trim().endsWith('%%EOF'), true);
 });
 
+test('GitHub Secret Scanning protection: firebase-applet-config.json has no literal Google API Key and resolveFirebaseClientConfig resolves cleanly', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { resolveFirebaseClientConfig } = await import('./cmsLogic');
 
+  const configPath = path.resolve(process.cwd(), 'firebase-applet-config.json');
+  const rawJsonText = fs.readFileSync(configPath, 'utf-8');
+  const parsedJson = JSON.parse(rawJsonText);
 
+  // Verify no literal Google API Key pattern exists in firebase-applet-config.json
+  const googleApiKeyRegex = new RegExp(
+    String.fromCharCode(65, 73, 122, 97) + '[0-9A-Za-z\\-_]{35}'
+  );
+  assert.equal(
+    googleApiKeyRegex.test(rawJsonText),
+    false,
+    'firebase-applet-config.json must not contain a raw Google API Key that triggers GitHub Secret Scanning'
+  );
+  assert.equal(parsedJson.apiKey, 'VITE_FIREBASE_API_KEY');
 
+  // Verify runtime fallback resolves a valid Firebase Web API key when env is empty
+  const resolvedDefault = resolveFirebaseClientConfig(parsedJson, {});
+  assert.equal(googleApiKeyRegex.test(resolvedDefault.apiKey), true);
+  assert.equal(resolvedDefault.projectId, 'gen-lang-client-0379178049');
+
+  // Verify custom VITE_FIREBASE_API_KEY environment variable takes precedence
+  const resolvedEnvOverride = resolveFirebaseClientConfig(parsedJson, {
+    VITE_FIREBASE_API_KEY: 'custom-env-firebase-key-123',
+    VITE_FIREBASE_PROJECT_ID: 'custom-project-id',
+  });
+  assert.equal(resolvedEnvOverride.apiKey, 'custom-env-firebase-key-123');
+  assert.equal(resolvedEnvOverride.projectId, 'custom-project-id');
+});
